@@ -40,14 +40,31 @@
           </div>
         </div>
 
+        <div id="budgetTip" class="budget-tip hidden"></div>
+
         <canvas id="poolCanvas" width="920" height="620" aria-label="潮汐池生态地图"></canvas>
 
         <div class="toolbar" aria-label="生态调控工具">
-          <button class="tool active" data-tool="rock">岩缝</button>
-          <button class="tool" data-tool="kelp">海藻</button>
-          <button class="tool" data-tool="mussel">贝群</button>
-          <button class="tool" data-tool="shade">遮阴</button>
-          <button class="tool" data-tool="clear">清理</button>
+          <button class="tool active" data-tool="rock">
+            <span class="tool-name">岩缝</span>
+            <span class="tool-cost">-3</span>
+          </button>
+          <button class="tool" data-tool="kelp">
+            <span class="tool-name">海藻</span>
+            <span class="tool-cost">-2</span>
+          </button>
+          <button class="tool" data-tool="mussel">
+            <span class="tool-name">贝群</span>
+            <span class="tool-cost">-4</span>
+          </button>
+          <button class="tool" data-tool="shade">
+            <span class="tool-name">遮阴</span>
+            <span class="tool-cost">-1</span>
+          </button>
+          <button class="tool" data-tool="clear">
+            <span class="tool-name">清理</span>
+            <span class="tool-cost">回收</span>
+          </button>
         </div>
       </section>
 
@@ -60,6 +77,15 @@
           </div>
           <ul id="challengeGoals" class="challenge-goals"></ul>
           <button id="quitChallengeBtn" class="quit-btn">退出挑战</button>
+        </section>
+
+        <section class="budget-panel">
+          <div class="budget-header">
+            <span>生态预算</span>
+            <strong id="budget">40</strong>
+          </div>
+          <div class="meter budget-meter"><i id="budgetBar"></i></div>
+          <p class="budget-hint">放置消耗 / 移除回收 · 初始 40</p>
         </section>
 
         <section class="score">

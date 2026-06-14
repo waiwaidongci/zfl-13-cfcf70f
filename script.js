@@ -21,6 +21,9 @@ const quitChallengeBtn = document.querySelector("#quitChallengeBtn");
 const challengeStatusEl = document.querySelector("#challengeStatus");
 const statusIconEl = document.querySelector("#statusIcon");
 const statusTextEl = document.querySelector("#statusText");
+const budgetEl = document.querySelector("#budget");
+const budgetBar = document.querySelector("#budgetBar");
+const budgetTipEl = document.querySelector("#budgetTip");
 
 const cols = 14;
 const rows = 9;
@@ -28,6 +31,17 @@ let activeTool = "rock";
 let tick = 0;
 let day = 1;
 let autoTimer = null;
+
+const TOOL_COSTS = {
+  rock: 3,
+  kelp: 2,
+  mussel: 4,
+  shade: 1,
+  clear: 0
+};
+
+const INITIAL_BUDGET = 40;
+let budget = INITIAL_BUDGET;
 
 const CHALLENGES = [
   {
@@ -271,6 +285,10 @@ function updatePanel() {
   document.querySelector("#crabs").textContent = sum.crabs;
   document.querySelector("#mussels").textContent = sum.mussels;
   document.querySelector("#stars").textContent = sum.stars;
+  budgetEl.textContent = budget;
+  const budgetPercent = Math.max(0, Math.min(100, (budget / INITIAL_BUDGET) * 100));
+  budgetBar.style.width = `${budgetPercent}%`;
+  budgetBar.parentElement.classList.toggle("budget-low", budget < 10);
 }
 
 function logEvent(text) {
@@ -278,6 +296,17 @@ function logEvent(text) {
   li.textContent = text;
   eventList.prepend(li);
   while (eventList.children.length > 5) eventList.lastElementChild.remove();
+}
+
+let budgetTipTimer = null;
+function showBudgetTip(text, type = "warn") {
+  budgetTipEl.textContent = text;
+  budgetTipEl.className = `budget-tip budget-${type}`;
+  budgetTipEl.classList.remove("hidden");
+  if (budgetTipTimer) clearTimeout(budgetTipTimer);
+  budgetTipTimer = setTimeout(() => {
+    budgetTipEl.classList.add("hidden");
+  }, 1800);
 }
 
 function neighbors(cell) {
@@ -342,16 +371,86 @@ function advance() {
 
 function applyTool(cell) {
   if (!cell || cell.base === "water") return;
-  if (activeTool === "rock") cell.rock = !cell.rock;
-  if (activeTool === "kelp") cell.kelp = !cell.kelp;
-  if (activeTool === "mussel") cell.mussel = cell.mussel ? 0 : 3;
-  if (activeTool === "shade") cell.shade = !cell.shade;
+
+  const cost = TOOL_COSTS[activeTool];
+
   if (activeTool === "clear") {
+    const hadRock = cell.rock;
+    const hadKelp = cell.kelp;
+    const hadMussel = cell.mussel > 0;
+    const hadShade = cell.shade;
+    if (!hadRock && !hadKelp && !hadMussel && !hadShade) return;
+
+    let refund = 0;
+    if (hadRock) refund += TOOL_COSTS.rock;
+    if (hadKelp) refund += TOOL_COSTS.kelp;
+    if (hadMussel) refund += TOOL_COSTS.mussel;
+    if (hadShade) refund += TOOL_COSTS.shade;
+    budget += refund;
+
     cell.rock = false;
     cell.kelp = false;
     cell.mussel = 0;
     cell.shade = false;
+    showBudgetTip(`清理回收 +${refund} 预算`, "gain");
+  } else if (activeTool === "rock") {
+    if (!cell.rock) {
+      if (budget < cost) {
+        showBudgetTip(`预算不足！放置岩缝需要 ${cost}`);
+        return;
+      }
+      budget -= cost;
+      cell.rock = true;
+      showBudgetTip(`放置岩缝 -${cost}`, "spend");
+    } else {
+      cell.rock = false;
+      budget += cost;
+      showBudgetTip(`移除岩缝 +${cost}`, "gain");
+    }
+  } else if (activeTool === "kelp") {
+    if (!cell.kelp) {
+      if (budget < cost) {
+        showBudgetTip(`预算不足！放置海藻需要 ${cost}`);
+        return;
+      }
+      budget -= cost;
+      cell.kelp = true;
+      showBudgetTip(`放置海藻 -${cost}`, "spend");
+    } else {
+      cell.kelp = false;
+      budget += cost;
+      showBudgetTip(`移除海藻 +${cost}`, "gain");
+    }
+  } else if (activeTool === "mussel") {
+    if (cell.mussel === 0) {
+      if (budget < cost) {
+        showBudgetTip(`预算不足！放置贝群需要 ${cost}`);
+        return;
+      }
+      budget -= cost;
+      cell.mussel = 3;
+      showBudgetTip(`放置贝群 -${cost}`, "spend");
+    } else {
+      cell.mussel = 0;
+      budget += cost;
+      showBudgetTip(`移除贝群 +${cost}`, "gain");
+    }
+  } else if (activeTool === "shade") {
+    if (!cell.shade) {
+      if (budget < cost) {
+        showBudgetTip(`预算不足！放置遮阴需要 ${cost}`);
+        return;
+      }
+      budget -= cost;
+      cell.shade = true;
+      showBudgetTip(`放置遮阴 -${cost}`, "spend");
+    } else {
+      cell.shade = false;
+      budget += cost;
+      showBudgetTip(`移除遮阴 +${cost}`, "gain");
+    }
   }
+
   draw();
   updatePanel();
 }
@@ -456,6 +555,7 @@ function resetSimulation() {
   }
   tick = 0;
   day = 1;
+  budget = INITIAL_BUDGET;
   challengeStressCount = 0;
   if (currentChallenge) {
     challengeComplete = false;
