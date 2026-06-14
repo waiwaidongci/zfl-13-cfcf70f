@@ -24,6 +24,15 @@ const statusTextEl = document.querySelector("#statusText");
 const budgetEl = document.querySelector("#budget");
 const budgetBar = document.querySelector("#budgetBar");
 const budgetTipEl = document.querySelector("#budgetTip");
+const sandboxBtn = document.querySelector("#sandboxBtn");
+const sandboxModal = document.querySelector("#sandboxModal");
+const closeSandboxBtn = document.querySelector("#closeSandboxBtn");
+const sandboxNameInput = document.querySelector("#sandboxNameInput");
+const saveSandboxBtn = document.querySelector("#saveSandboxBtn");
+const sandboxListEl = document.querySelector("#sandboxList");
+const sandboxEmptyEl = document.querySelector("#sandboxEmpty");
+
+const SANDBOX_STORAGE_KEY = "tidepool_sandbox_scenarios";
 
 const cols = 14;
 const rows = 9;
@@ -658,6 +667,271 @@ function showChallengeStatus(type, text) {
 function hideChallengeStatus() {
   challengeStatusEl.classList.add("hidden");
 }
+
+function serializeState() {
+  const events = [];
+  const items = eventList.querySelectorAll("li");
+  items.forEach((li) => events.push(li.textContent));
+
+  return {
+    version: 1,
+    savedAt: Date.now(),
+    grid: deepCloneGrid(grid),
+    tick,
+    day,
+    budget,
+    activeTool,
+    events,
+    currentChallenge: currentChallenge ? { ...currentChallenge } : null,
+    challengeStressCount,
+    challengeComplete,
+    challengeFailed
+  };
+}
+
+function deserializeState(state) {
+  if (autoTimer) {
+    clearInterval(autoTimer);
+    autoTimer = null;
+    autoBtn.textContent = "自动推进";
+  }
+
+  for (let y = 0; y < rows; y += 1) {
+    for (let x = 0; x < cols; x += 1) {
+      grid[y][x] = { ...state.grid[y][x] };
+    }
+  }
+
+  tick = state.tick;
+  day = state.day;
+  budget = state.budget;
+  activeTool = state.activeTool || "rock";
+  challengeStressCount = state.challengeStressCount || 0;
+  challengeComplete = state.challengeComplete || false;
+  challengeFailed = state.challengeFailed || false;
+
+  if (state.currentChallenge) {
+    currentChallenge = { ...state.currentChallenge };
+    challengeProgressEl.classList.remove("hidden");
+    challengeTitleEl.textContent = currentChallenge.title;
+    challengeDescEl.textContent = currentChallenge.desc;
+  } else {
+    currentChallenge = null;
+    challengeProgressEl.classList.add("hidden");
+  }
+
+  toolButtons.forEach((item) => {
+    item.classList.toggle("active", item.dataset.tool === activeTool);
+  });
+
+  eventList.innerHTML = "";
+  if (state.events && state.events.length > 0) {
+    state.events.forEach((text) => {
+      const li = document.createElement("li");
+      li.textContent = text;
+      eventList.appendChild(li);
+    });
+  }
+
+  draw();
+  updatePanel();
+  if (currentChallenge) renderChallengeGoals();
+  if (challengeComplete) showChallengeStatus("success", "挑战成功！生态管理出色。");
+  else if (challengeFailed) showChallengeStatus("fail", "挑战失败！点击重置再试一次。");
+  else hideChallengeStatus();
+}
+
+function getSandboxes() {
+  try {
+    const raw = localStorage.getItem(SANDBOX_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function setSandboxes(list) {
+  localStorage.setItem(SANDBOX_STORAGE_KEY, JSON.stringify(list));
+}
+
+function generateId() {
+  return "sb_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7);
+}
+
+function saveSandbox(name) {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    showBudgetTip("请输入方案名称", "warn");
+    return false;
+  }
+
+  const wasAutoRunning = !!autoTimer;
+  if (wasAutoRunning) {
+    clearInterval(autoTimer);
+    autoTimer = null;
+    autoBtn.textContent = "自动推进";
+  }
+
+  const state = serializeState();
+  const sandboxes = getSandboxes();
+  const existingIndex = sandboxes.findIndex((s) => s.name === trimmed);
+
+  if (existingIndex >= 0) {
+    sandboxes[existingIndex] = {
+      ...sandboxes[existingIndex],
+      state,
+      updatedAt: Date.now()
+    };
+    showBudgetTip(`已覆盖方案「${trimmed}」`, "gain");
+  } else {
+    sandboxes.unshift({
+      id: generateId(),
+      name: trimmed,
+      state,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    });
+    showBudgetTip(`已保存方案「${trimmed}」`, "gain");
+  }
+
+  setSandboxes(sandboxes);
+  renderSandboxList();
+  return true;
+}
+
+function loadSandbox(id) {
+  const sandboxes = getSandboxes();
+  const sandbox = sandboxes.find((s) => s.id === id);
+  if (!sandbox) {
+    showBudgetTip("方案不存在", "warn");
+    return false;
+  }
+
+  deserializeState(sandbox.state);
+  showBudgetTip(`已加载方案「${sandbox.name}」`, "gain");
+  return true;
+}
+
+function deleteSandbox(id) {
+  const sandboxes = getSandboxes();
+  const sandbox = sandboxes.find((s) => s.id === id);
+  if (!sandbox) return;
+
+  const confirmed = confirm(`确定要删除方案「${sandbox.name}」吗？`);
+  if (!confirmed) return;
+
+  const filtered = sandboxes.filter((s) => s.id !== id);
+  setSandboxes(filtered);
+  renderSandboxList();
+  showBudgetTip(`已删除方案「${sandbox.name}」`, "spend");
+}
+
+function renderSandboxList() {
+  const sandboxes = getSandboxes();
+  sandboxListEl.innerHTML = "";
+
+  if (sandboxes.length === 0) {
+    sandboxEmptyEl.classList.remove("hidden");
+    return;
+  }
+
+  sandboxEmptyEl.classList.add("hidden");
+
+  sandboxes.forEach((sb) => {
+    const card = document.createElement("div");
+    card.className = "sandbox-card";
+
+    const sum = TidepoolCore.totals(sb.state.grid);
+    const score = TidepoolCore.stabilityScore(sum);
+    const date = new Date(sb.updatedAt);
+    const dateStr = `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+
+    card.innerHTML = `
+      <div class="sandbox-card-head">
+        <h4 class="sandbox-card-name">${sb.name}</h4>
+        <span class="sandbox-card-date">${dateStr}</span>
+      </div>
+      <div class="sandbox-card-meta">
+        <span>第${sb.state.day}天</span>
+        <span>稳定度 ${score}</span>
+        <span>螺 ${sum.snails} · 蟹 ${sum.crabs} · 贝 ${sum.mussels} · 星 ${sum.stars}</span>
+      </div>
+      <div class="sandbox-card-actions">
+        <button class="sandbox-load-btn" data-id="${sb.id}">加载</button>
+        <button class="sandbox-overwrite-btn" data-id="${sb.id}">覆盖</button>
+        <button class="sandbox-delete-btn" data-id="${sb.id}">删除</button>
+      </div>
+    `;
+
+    card.querySelector(".sandbox-load-btn").addEventListener("click", () => {
+      loadSandbox(sb.id);
+      closeSandboxModal();
+    });
+
+    card.querySelector(".sandbox-overwrite-btn").addEventListener("click", () => {
+      const wasAutoRunning = !!autoTimer;
+      if (wasAutoRunning) {
+        clearInterval(autoTimer);
+        autoTimer = null;
+        autoBtn.textContent = "自动推进";
+      }
+      const state = serializeState();
+      const list = getSandboxes();
+      const idx = list.findIndex((s) => s.id === sb.id);
+      if (idx >= 0) {
+        list[idx].state = state;
+        list[idx].updatedAt = Date.now();
+        setSandboxes(list);
+        renderSandboxList();
+        showBudgetTip(`已覆盖方案「${sb.name}」`, "gain");
+      }
+    });
+
+    card.querySelector(".sandbox-delete-btn").addEventListener("click", () => {
+      deleteSandbox(sb.id);
+    });
+
+    sandboxListEl.appendChild(card);
+  });
+}
+
+function openSandboxModal() {
+  if (autoTimer) {
+    clearInterval(autoTimer);
+    autoTimer = null;
+    autoBtn.textContent = "自动推进";
+  }
+  renderSandboxList();
+  sandboxNameInput.value = "";
+  sandboxModal.classList.remove("hidden");
+  setTimeout(() => sandboxNameInput.focus(), 100);
+}
+
+function closeSandboxModal() {
+  sandboxModal.classList.add("hidden");
+}
+
+sandboxBtn.addEventListener("click", openSandboxModal);
+closeSandboxBtn.addEventListener("click", closeSandboxModal);
+sandboxModal.addEventListener("click", (e) => {
+  if (e.target === sandboxModal) closeSandboxModal();
+});
+
+saveSandboxBtn.addEventListener("click", () => {
+  const name = sandboxNameInput.value.trim();
+  if (saveSandbox(name)) {
+    sandboxNameInput.value = "";
+  }
+});
+
+sandboxNameInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    const name = sandboxNameInput.value.trim();
+    if (saveSandbox(name)) {
+      sandboxNameInput.value = "";
+    }
+  }
+});
 
 logEvent("潮汐池进入初始观察。");
 draw();

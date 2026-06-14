@@ -728,3 +728,201 @@ dd {
   background: linear-gradient(135deg, #cde9cd, #a8d8a8);
   border: 1px solid #7fb87f;
 }
+
+.sandbox-toggle {
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  background: #fffaf0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+}
+
+.sandbox-toggle:hover {
+  transform: translateY(-1px);
+  border-color: #718879;
+  background: #fff5e0;
+}
+
+.sandbox-save-section {
+  padding: 18px 22px 0;
+}
+
+.sandbox-save-input {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.sandbox-save-input input {
+  padding: 10px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--ink);
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 0.16s ease;
+}
+
+.sandbox-save-input input:focus {
+  border-color: var(--deep);
+}
+
+.save-btn {
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 700;
+  color: white;
+  background: var(--deep);
+  border: 1px solid var(--deep);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: transform 0.16s ease, background 0.16s ease;
+}
+
+.save-btn:hover {
+  transform: translateY(-1px);
+  background: #1a4754;
+}
+
+.sandbox-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.sandbox-list-section {
+  padding: 16px 22px 22px;
+}
+
+.sandbox-section-title {
+  margin: 0 0 12px;
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.sandbox-list {
+  display: grid;
+  gap: 10px;
+}
+
+.sandbox-card {
+  padding: 14px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.sandbox-card:hover {
+  border-color: var(--water);
+  box-shadow: 0 4px 12px rgba(37, 91, 107, 0.1);
+}
+
+.sandbox-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.sandbox-card-name {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--deep);
+}
+
+.sandbox-card-date {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.sandbox-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.sandbox-card-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.sandbox-card-actions button {
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+
+.sandbox-load-btn {
+  color: white;
+  background: var(--kelp);
+  border: 1px solid var(--kelp);
+}
+
+.sandbox-load-btn:hover {
+  transform: translateY(-1px);
+  background: #54793a;
+}
+
+.sandbox-overwrite-btn {
+  color: var(--sun);
+  background: transparent;
+  border: 1px solid var(--sun);
+}
+
+.sandbox-overwrite-btn:hover {
+  transform: translateY(-1px);
+  background: rgba(217, 154, 63, 0.1);
+}
+
+.sandbox-delete-btn {
+  color: var(--coral);
+  background: transparent;
+  border: 1px solid var(--coral);
+}
+
+.sandbox-delete-btn:hover {
+  transform: translateY(-1px);
+  background: rgba(200, 102, 85, 0.1);
+}
+
+.sandbox-empty {
+  margin: 0;
+  padding: 20px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+}
+
+@media (max-width: 640px) {
+  .sandbox-card-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .sandbox-save-input {
+    grid-template-columns: 1fr;
+  }
+}

@@ -15,6 +15,7 @@
             <h1>潮汐池生态模拟</h1>
           </div>
           <div class="topbar-actions">
+            <button id="sandboxBtn" class="sandbox-toggle">沙盘方案</button>
             <button id="challengeBtn" class="challenge-toggle">任务挑战</button>
             <div class="timebox">
               <span id="phaseLabel">退潮</span>
@@ -22,6 +23,27 @@
             </div>
           </div>
         </header>
+
+        <div id="sandboxModal" class="modal hidden" role="dialog" aria-modal="true">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h2>沙盘方案管理</h2>
+              <button id="closeSandboxBtn" class="modal-close">×</button>
+            </div>
+            <div class="sandbox-save-section">
+              <div class="sandbox-save-input">
+                <input type="text" id="sandboxNameInput" placeholder="输入方案名称..." maxlength="30" />
+                <button id="saveSandboxBtn" class="save-btn">保存当前状态</button>
+              </div>
+              <p class="sandbox-hint">将当前潮汐池布局、物种数量、天数、潮汐进度和事件日志保存到浏览器本地。</p>
+            </div>
+            <div class="sandbox-list-section">
+              <h3 class="sandbox-section-title">已保存方案</h3>
+              <div id="sandboxList" class="sandbox-list"></div>
+              <p id="sandboxEmpty" class="sandbox-empty">暂无保存的方案</p>
+            </div>
+          </div>
+        </div>
 
         <div id="challengeModal" class="modal hidden" role="dialog" aria-modal="true">
           <div class="modal-content">
