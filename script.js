@@ -758,6 +758,16 @@ function generateId() {
   return "sb_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7);
 }
 
+function escapeHtml(text) {
+  return String(text).replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[char]));
+}
+
 function saveSandbox(name) {
   const trimmed = name.trim();
   if (!trimmed) {
@@ -845,10 +855,11 @@ function renderSandboxList() {
     const score = TidepoolCore.stabilityScore(sum);
     const date = new Date(sb.updatedAt);
     const dateStr = `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+    const safeName = escapeHtml(sb.name);
 
     card.innerHTML = `
       <div class="sandbox-card-head">
-        <h4 class="sandbox-card-name">${sb.name}</h4>
+        <h4 class="sandbox-card-name">${safeName}</h4>
         <span class="sandbox-card-date">${dateStr}</span>
       </div>
       <div class="sandbox-card-meta">
