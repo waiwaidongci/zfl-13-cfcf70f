@@ -14,11 +14,31 @@
             <p class="eyebrow">Tidepool Steward</p>
             <h1>潮汐池生态模拟</h1>
           </div>
-          <div class="timebox">
-            <span id="phaseLabel">退潮</span>
-            <strong id="dayLabel">第1天</strong>
+          <div class="topbar-actions">
+            <button id="challengeBtn" class="challenge-toggle">任务挑战</button>
+            <div class="timebox">
+              <span id="phaseLabel">退潮</span>
+              <strong id="dayLabel">第1天</strong>
+            </div>
           </div>
         </header>
+
+        <div id="challengeModal" class="modal hidden" role="dialog" aria-modal="true">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h2>选择挑战任务</h2>
+              <button id="closeChallengeBtn" class="modal-close">×</button>
+            </div>
+            <div id="challengeList" class="challenge-list"></div>
+          </div>
+        </div>
+
+        <div id="challengeStatus" class="challenge-status hidden">
+          <div class="status-content">
+            <span id="statusIcon"></span>
+            <span id="statusText"></span>
+          </div>
+        </div>
 
         <canvas id="poolCanvas" width="920" height="620" aria-label="潮汐池生态地图"></canvas>
 
@@ -32,6 +52,16 @@
       </section>
 
       <aside class="panel">
+        <section id="challengeProgress" class="challenge-progress hidden">
+          <div class="challenge-header">
+            <span class="challenge-tag">挑战中</span>
+            <h2 id="challengeTitle"></h2>
+            <p id="challengeDesc"></p>
+          </div>
+          <ul id="challengeGoals" class="challenge-goals"></ul>
+          <button id="quitChallengeBtn" class="quit-btn">退出挑战</button>
+        </section>
+
         <section class="score">
           <span>生态稳定度</span>
           <strong id="stability">72</strong>

@@ -9,6 +9,18 @@ const phaseLabel = document.querySelector("#phaseLabel");
 const dayLabel = document.querySelector("#dayLabel");
 const tideNeedle = document.querySelector("#tideNeedle");
 const autoBtn = document.querySelector("#autoBtn");
+const challengeBtn = document.querySelector("#challengeBtn");
+const challengeModal = document.querySelector("#challengeModal");
+const closeChallengeBtn = document.querySelector("#closeChallengeBtn");
+const challengeListEl = document.querySelector("#challengeList");
+const challengeProgressEl = document.querySelector("#challengeProgress");
+const challengeTitleEl = document.querySelector("#challengeTitle");
+const challengeDescEl = document.querySelector("#challengeDesc");
+const challengeGoalsEl = document.querySelector("#challengeGoals");
+const quitChallengeBtn = document.querySelector("#quitChallengeBtn");
+const challengeStatusEl = document.querySelector("#challengeStatus");
+const statusIconEl = document.querySelector("#statusIcon");
+const statusTextEl = document.querySelector("#statusText");
 
 const cols = 14;
 const rows = 9;
@@ -16,6 +28,72 @@ let activeTool = "rock";
 let tick = 0;
 let day = 1;
 let autoTimer = null;
+
+const CHALLENGES = [
+  {
+    id: "stability_80_by_day6",
+    title: "稳定守护者",
+    desc: "在第6天结束前，将生态稳定度维持在80以上。",
+    goals: [
+      {
+        id: "stability",
+        label: "生态稳定度 ≥ 80",
+        type: "threshold",
+        target: 80,
+        deadline: 6
+      }
+    ]
+  },
+  {
+    id: "mussel_range",
+    title: "贝类平衡师",
+    desc: "在第5天到第8天期间，贝类数量保持在18~28之间。",
+    goals: [
+      {
+        id: "mussel_min",
+        label: "贝类数量 ≥ 18（第5-8天）",
+        type: "range_min",
+        target: 18,
+        startDay: 5,
+        endDay: 8
+      },
+      {
+        id: "mussel_max",
+        label: "贝类数量 ≤ 28（第5-8天）",
+        type: "range_max",
+        target: 28,
+        startDay: 5,
+        endDay: 8
+      }
+    ]
+  },
+  {
+    id: "low_tide_resilience",
+    title: "低潮抗压",
+    desc: "在10天内，避免低潮压力事件累计不超过6次。",
+    goals: [
+      {
+        id: "stress_count",
+        label: "低潮压力次数 ≤ 6",
+        type: "max_count",
+        target: 6,
+        deadline: 10
+      }
+    ]
+  }
+];
+
+let currentChallenge = null;
+let initialState = null;
+let challengeStressCount = 0;
+let challengeComplete = false;
+let challengeFailed = false;
+
+function deepCloneGrid(source) {
+  return source.map((row) =>
+    row.map((cell) => ({ ...cell }))
+  );
+}
 
 const initial = [
   "wwwwwwwwwwwwww",
@@ -212,6 +290,7 @@ function neighbors(cell) {
 }
 
 function advance() {
+  if (challengeComplete || challengeFailed) return;
   tick += 1;
   if (tick % 2 === 0) day += 1;
   const level = tideLevel();
@@ -249,6 +328,8 @@ function advance() {
     if (cell.snails > 3 && shelter && Math.random() < 0.1) cell.crabs = Math.min(3, cell.crabs + 1);
   });
 
+  if (currentChallenge && stress > 0) challengeStressCount += 1;
+
   if (phaseName(level) === "满潮") logEvent("满潮带来浮游养分，贝类扩张更快。");
   else if (stress > 0) logEvent(`低水位造成${stress}处生物压力。`);
   else if (births > 3) logEvent("海藻边缘出现新的螺类活动。");
@@ -256,6 +337,7 @@ function advance() {
 
   draw();
   updatePanel();
+  if (currentChallenge) checkChallengeProgress();
 }
 
 function applyTool(cell) {
@@ -290,7 +372,7 @@ toolButtons.forEach((button) => {
 });
 
 document.querySelector("#advanceBtn").addEventListener("click", advance);
-document.querySelector("#resetBtn").addEventListener("click", () => location.reload());
+document.querySelector("#resetBtn").addEventListener("click", resetSimulation);
 autoBtn.addEventListener("click", () => {
   if (autoTimer) {
     clearInterval(autoTimer);
@@ -301,6 +383,205 @@ autoBtn.addEventListener("click", () => {
     autoBtn.textContent = "暂停推进";
   }
 });
+
+challengeBtn.addEventListener("click", openChallengeModal);
+closeChallengeBtn.addEventListener("click", closeChallengeModal);
+quitChallengeBtn.addEventListener("click", quitChallenge);
+challengeModal.addEventListener("click", (e) => {
+  if (e.target === challengeModal) closeChallengeModal();
+});
+
+function renderChallengeList() {
+  challengeListEl.innerHTML = "";
+  CHALLENGES.forEach((ch) => {
+    const card = document.createElement("button");
+    card.className = "challenge-card";
+    card.innerHTML = `
+      <h3>${ch.title}</h3>
+      <p>${ch.desc}</p>
+      <ul>
+        ${ch.goals.map((g) => `<li>${g.label}</li>`).join("")}
+      </ul>
+      <span class="start-btn">开始挑战</span>
+    `;
+    card.addEventListener("click", () => startChallenge(ch));
+    challengeListEl.appendChild(card);
+  });
+}
+
+function openChallengeModal() {
+  if (currentChallenge) return;
+  renderChallengeList();
+  challengeModal.classList.remove("hidden");
+}
+
+function closeChallengeModal() {
+  challengeModal.classList.add("hidden");
+}
+
+function startChallenge(challenge) {
+  currentChallenge = challenge;
+  challengeComplete = false;
+  challengeFailed = false;
+  challengeStressCount = 0;
+  closeChallengeModal();
+  hideChallengeStatus();
+  challengeProgressEl.classList.remove("hidden");
+  challengeTitleEl.textContent = challenge.title;
+  challengeDescEl.textContent = challenge.desc;
+  resetSimulation();
+  renderChallengeGoals();
+}
+
+function quitChallenge() {
+  if (autoTimer) {
+    clearInterval(autoTimer);
+    autoTimer = null;
+    autoBtn.textContent = "自动推进";
+  }
+  currentChallenge = null;
+  challengeComplete = false;
+  challengeFailed = false;
+  challengeStressCount = 0;
+  challengeProgressEl.classList.add("hidden");
+  hideChallengeStatus();
+  resetSimulation();
+}
+
+function resetSimulation() {
+  if (autoTimer) {
+    clearInterval(autoTimer);
+    autoTimer = null;
+    autoBtn.textContent = "自动推进";
+  }
+  tick = 0;
+  day = 1;
+  challengeStressCount = 0;
+  if (currentChallenge) {
+    challengeComplete = false;
+    challengeFailed = false;
+  }
+  const baseInitial = initial.map((row, y) =>
+    [...row].map((char, x) => ({
+      x,
+      y,
+      base: char === "w" ? "water" : char === "r" ? "rock" : "sand",
+      rock: char === "r",
+      kelp: char === "k",
+      mussel: char === "m" ? 3 : 0,
+      shade: false,
+      snails: x % 5 === 0 && y % 2 === 0 ? 2 : 0,
+      crabs: x % 7 === 0 && y % 3 === 0 ? 1 : 0,
+      stars: x === 10 && y === 4 ? 1 : 0
+    }))
+  );
+  for (let y = 0; y < rows; y += 1) {
+    for (let x = 0; x < cols; x += 1) {
+      grid[y][x] = { ...baseInitial[y][x] };
+    }
+  }
+  eventList.innerHTML = "";
+  hideChallengeStatus();
+  logEvent("潮汐池进入初始观察。");
+  draw();
+  updatePanel();
+  if (currentChallenge) renderChallengeGoals();
+}
+
+function renderChallengeGoals() {
+  challengeGoalsEl.innerHTML = "";
+  const sum = totals();
+  const score = stabilityScore(sum);
+  currentChallenge.goals.forEach((goal) => {
+    const li = document.createElement("li");
+    const status = evaluateGoal(goal, sum, score);
+    li.className = `goal-item goal-${status.state}`;
+    li.innerHTML = `
+      <span class="goal-icon">${status.state === "pass" ? "✓" : status.state === "fail" ? "✗" : "○"}</span>
+      <span class="goal-text">${goal.label}</span>
+      <span class="goal-value">${status.detail}</span>
+    `;
+    challengeGoalsEl.appendChild(li);
+  });
+}
+
+function evaluateGoal(goal, sum, score) {
+  switch (goal.type) {
+    case "threshold": {
+      const current = score;
+      const expired = day > goal.deadline;
+      if (current >= goal.target) return { state: "pass", detail: `${current}/${goal.target}` };
+      if (expired) return { state: "fail", detail: `已超期（第${day}天）` };
+      return { state: "active", detail: `${current}/${goal.target}（第${day}天）` };
+    }
+    case "range_min": {
+      const current = sum.mussels;
+      if (day >= goal.startDay && day <= goal.endDay) {
+        if (current >= goal.target) return { state: "pass", detail: `${current}只` };
+        return { state: "active", detail: `${current}只（第${day}天）` };
+      }
+      if (day > goal.endDay) return { state: "fail", detail: `已超期` };
+      return { state: "active", detail: `${current}只（等待第${goal.startDay}天）` };
+    }
+    case "range_max": {
+      const current = sum.mussels;
+      if (day >= goal.startDay && day <= goal.endDay) {
+        if (current <= goal.target) return { state: "pass", detail: `${current}只` };
+        return { state: "fail", detail: `${current}只（超出）` };
+      }
+      if (day > goal.endDay) return { state: "pass", detail: `已维持` };
+      return { state: "active", detail: `${current}只（等待第${goal.startDay}天）` };
+    }
+    case "max_count": {
+      const current = challengeStressCount;
+      const expired = day > goal.deadline;
+      if (current > goal.target) return { state: "fail", detail: `${current}/${goal.target}` };
+      if (expired) return { state: "pass", detail: `已通过（${current}次）` };
+      return { state: "active", detail: `${current}/${goal.target}（第${day}天）` };
+    }
+    default:
+      return { state: "active", detail: "" };
+  }
+}
+
+function checkChallengeProgress() {
+  if (!currentChallenge || challengeComplete || challengeFailed) return;
+  const sum = totals();
+  const score = stabilityScore(sum);
+  renderChallengeGoals();
+
+  const results = currentChallenge.goals.map((g) => evaluateGoal(g, sum, score));
+  const allPass = results.every((r) => r.state === "pass");
+  const anyFail = results.some((r) => r.state === "fail");
+
+  if (anyFail) {
+    challengeFailed = true;
+    showChallengeStatus("fail", "挑战失败！点击重置再试一次。");
+    if (autoTimer) {
+      clearInterval(autoTimer);
+      autoTimer = null;
+      autoBtn.textContent = "自动推进";
+    }
+  } else if (allPass) {
+    challengeComplete = true;
+    showChallengeStatus("success", "挑战成功！生态管理出色。");
+    if (autoTimer) {
+      clearInterval(autoTimer);
+      autoTimer = null;
+      autoBtn.textContent = "自动推进";
+    }
+  }
+}
+
+function showChallengeStatus(type, text) {
+  challengeStatusEl.className = `challenge-status status-${type}`;
+  statusIconEl.textContent = type === "success" ? "🏆" : "💧";
+  statusTextEl.textContent = text;
+}
+
+function hideChallengeStatus() {
+  challengeStatusEl.classList.add("hidden");
+}
 
 logEvent("潮汐池进入初始观察。");
 draw();
