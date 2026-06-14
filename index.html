@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>潮汐池生态模拟</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="stage">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Tidepool Steward</p>
+            <h1>潮汐池生态模拟</h1>
+          </div>
+          <div class="timebox">
+            <span id="phaseLabel">退潮</span>
+            <strong id="dayLabel">第1天</strong>
+          </div>
+        </header>
+
+        <canvas id="poolCanvas" width="920" height="620" aria-label="潮汐池生态地图"></canvas>
+
+        <div class="toolbar" aria-label="生态调控工具">
+          <button class="tool active" data-tool="rock">岩缝</button>
+          <button class="tool" data-tool="kelp">海藻</button>
+          <button class="tool" data-tool="mussel">贝群</button>
+          <button class="tool" data-tool="shade">遮阴</button>
+          <button class="tool" data-tool="clear">清理</button>
+        </div>
+      </section>
+
+      <aside class="panel">
+        <section class="score">
+          <span>生态稳定度</span>
+          <strong id="stability">72</strong>
+          <div class="meter"><i id="stabilityBar"></i></div>
+        </section>
+
+        <section class="cycle">
+          <div class="dial">
+            <i id="tideNeedle"></i>
+          </div>
+          <div>
+            <span>潮位</span>
+            <strong id="tideLabel">36%</strong>
+          </div>
+        </section>
+
+        <section class="stats">
+          <h2>物种</h2>
+          <dl>
+            <div><dt>螺类</dt><dd id="snails">0</dd></div>
+            <div><dt>小蟹</dt><dd id="crabs">0</dd></div>
+            <div><dt>贝类</dt><dd id="mussels">0</dd></div>
+            <div><dt>海星</dt><dd id="stars">0</dd></div>
+          </dl>
+        </section>
+
+        <section class="events">
+          <h2>潮汐事件</h2>
+          <ol id="eventList"></ol>
+        </section>
+
+        <section class="actions">
+          <button id="advanceBtn">推进半日</button>
+          <button id="autoBtn">自动推进</button>
+          <button id="resetBtn">重置</button>
+        </section>
+      </aside>
+    </main>
+
+    <script src="./script.js"></script>
+  </body>
+</html>
