@@ -455,12 +455,29 @@ function applyTool(cell) {
   updatePanel();
 }
 
-canvas.addEventListener("click", (event) => {
+function getCanvasCoords(event) {
   const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const x = (event.clientX - rect.left) * scaleX;
+  const y = (event.clientY - rect.top) * scaleY;
+  return { x, y };
+}
+
+canvas.addEventListener("click", (event) => {
+  const { x, y } = getCanvasCoords(event);
   const size = cellSize();
-  const x = Math.floor(((event.clientX - rect.left) / rect.width) * canvas.width / size.w);
-  const y = Math.floor(((event.clientY - rect.top) / rect.height) * canvas.height / size.h);
-  applyTool(grid[y]?.[x]);
+  const cellX = Math.floor(x / size.w);
+  const cellY = Math.floor(y / size.h);
+  applyTool(grid[cellY]?.[cellX]);
+});
+
+let resizeTimeout = null;
+window.addEventListener("resize", () => {
+  if (resizeTimeout) clearTimeout(resizeTimeout);
+  resizeTimeout = setTimeout(() => {
+    draw();
+  }, 100);
 });
 
 toolButtons.forEach((button) => {

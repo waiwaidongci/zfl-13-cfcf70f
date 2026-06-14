@@ -47,8 +47,9 @@ button {
 
 .stage {
   display: grid;
-  grid-template-rows: auto minmax(380px, 1fr) auto;
+  grid-template-rows: auto auto auto;
   overflow: hidden;
+  align-content: start;
 }
 
 .topbar {
@@ -101,11 +102,15 @@ h2 {
 
 canvas {
   width: 100%;
-  height: 100%;
-  min-height: 460px;
+  height: auto;
+  aspect-ratio: 920 / 620;
+  max-width: 920px;
+  max-height: 620px;
   display: block;
   background: #99c9d0;
   cursor: crosshair;
+  object-fit: contain;
+  touch-action: manipulation;
 }
 
 .toolbar {
