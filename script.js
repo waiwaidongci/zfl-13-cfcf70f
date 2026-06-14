@@ -510,12 +510,11 @@ function evaluateGoal(goal, sum, score) {
     case "threshold": {
       const current = score;
       const expired = day > goal.deadline;
+      if (current < goal.target) return { state: "fail", detail: `${current}/${goal.target}（第${day}天低于目标）` };
       if (expired) {
-        if (current >= goal.target) return { state: "pass", detail: `维持至第${goal.deadline}天：${current}/${goal.target}` };
-        return { state: "fail", detail: `第${goal.deadline}天结束仅${current}/${goal.target}` };
+        return { state: "pass", detail: `维持至第${goal.deadline}天：${current}/${goal.target}` };
       }
-      if (current >= goal.target) return { state: "active", detail: `当前达标 ${current}/${goal.target}（待第${goal.deadline}天验证）` };
-      return { state: "active", detail: `${current}/${goal.target}（第${day}天，截止第${goal.deadline}天）` };
+      return { state: "active", detail: `当前达标 ${current}/${goal.target}（待第${goal.deadline}天验证）` };
     }
     case "range_min": {
       const current = sum.mussels;
