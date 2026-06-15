@@ -127,7 +127,15 @@ console.log("\n=== 物种统计 (totals) ===");
 test("空网格统计全为零", () => {
   const grid = makeEmptyGrid(3, 3);
   const sum = totals(grid);
-  assert.deepStrictEqual(sum, { snails: 0, crabs: 0, mussels: 0, stars: 0, kelp: 0, rock: 0, shade: 0 });
+  assert.deepStrictEqual(sum, {
+    snails: 0,
+    crabs: 0,
+    mussels: 0,
+    stars: 0,
+    kelp: 0,
+    rock: 0,
+    shade: 0
+  });
 });
 
 test("单格物种统计正确", () => {
@@ -176,8 +184,14 @@ test("左上角格子只有两个邻居", () => {
   const cell = grid[0][0];
   const result = neighbors(grid, cell);
   assert.strictEqual(result.length, 2);
-  assert.ok(result.some((n) => n.x === 1 && n.y === 0), "应有右侧邻居");
-  assert.ok(result.some((n) => n.x === 0 && n.y === 1), "应有下方邻居");
+  assert.ok(
+    result.some((n) => n.x === 1 && n.y === 0),
+    "应有右侧邻居"
+  );
+  assert.ok(
+    result.some((n) => n.x === 0 && n.y === 1),
+    "应有下方邻居"
+  );
 });
 
 test("右下角格子只有两个邻居", () => {
@@ -185,8 +199,14 @@ test("右下角格子只有两个邻居", () => {
   const cell = grid[4][4];
   const result = neighbors(grid, cell);
   assert.strictEqual(result.length, 2);
-  assert.ok(result.some((n) => n.x === 3 && n.y === 4), "应有左侧邻居");
-  assert.ok(result.some((n) => n.x === 4 && n.y === 3), "应有上方邻居");
+  assert.ok(
+    result.some((n) => n.x === 3 && n.y === 4),
+    "应有左侧邻居"
+  );
+  assert.ok(
+    result.some((n) => n.x === 4 && n.y === 3),
+    "应有上方邻居"
+  );
 });
 
 test("边缘格子有三个邻居", () => {
@@ -263,8 +283,11 @@ test("分项之和加基础分等于总分", () => {
   cases.forEach((sum) => {
     const c = stabilityComponents(sum);
     const score = stabilityScore(sum);
-    const computed = Math.max(0, Math.min(100, Math.round(c.base + c.shelter + c.food + c.balance - c.crowdPenalty)));
-    assert.strictEqual(computed, score, `分项求和应等于 stabilityScore 结果`);
+    const computed = Math.max(
+      0,
+      Math.min(100, Math.round(c.base + c.shelter + c.food + c.balance - c.crowdPenalty))
+    );
+    assert.strictEqual(computed, score, "分项求和应等于 stabilityScore 结果");
   });
 });
 
@@ -314,13 +337,29 @@ test("rawScoreFromComponents 与 stabilityComponents 匹配", () => {
 });
 
 test("rawScoreFromComponents 可能超出 0-100 范围（验证钳位必要性）", () => {
-  const overflowSum = { snails: 30, crabs: 5, mussels: 26, stars: 6, kelp: 10, rock: 20, shade: 15 };
+  const overflowSum = {
+    snails: 30,
+    crabs: 5,
+    mussels: 26,
+    stars: 6,
+    kelp: 10,
+    rock: 20,
+    shade: 15
+  };
   const c = stabilityComponents(overflowSum);
   const raw = rawScoreFromComponents(c);
   const clamped = stabilityScore(overflowSum);
   assert.ok(raw > 100 || raw < 0 || true, "原始分可能超出范围");
   assert.ok(clamped >= 0 && clamped <= 100, "钳位后必须在范围内");
-  const negativeSum = { snails: 200, crabs: 100, mussels: 200, stars: 0, kelp: 0, rock: 0, shade: 0 };
+  const negativeSum = {
+    snails: 200,
+    crabs: 100,
+    mussels: 200,
+    stars: 0,
+    kelp: 0,
+    rock: 0,
+    shade: 0
+  };
   const c2 = stabilityComponents(negativeSum);
   const raw2 = rawScoreFromComponents(c2);
   const clamped2 = stabilityScore(negativeSum);
@@ -501,8 +540,14 @@ test("影响标签只保留与主稳定度变化语义一致的因素", () => {
   const positive = visibleImpactsForScoreDelta(impacts, 2);
   const negative = visibleImpactsForScoreDelta(impacts, -2);
 
-  assert.deepStrictEqual(positive.map((impact) => impact.id), ["kelp_expansion"]);
-  assert.deepStrictEqual(negative.map((impact) => impact.id), ["mussel_overcrowd"]);
+  assert.deepStrictEqual(
+    positive.map((impact) => impact.id),
+    ["kelp_expansion"]
+  );
+  assert.deepStrictEqual(
+    negative.map((impact) => impact.id),
+    ["mussel_overcrowd"]
+  );
 });
 
 test("相同输入净变化为零且含摘要", () => {
@@ -517,7 +562,13 @@ test("IMPACT_CATEGORIES 导出完整", () => {
   assert.ok(Array.isArray(IMPACT_CATEGORIES));
   assert.ok(IMPACT_CATEGORIES.length >= 5, "至少包含五类主因");
   const ids = IMPACT_CATEGORIES.map((c) => c.id);
-  const expectedIds = ["low_tide_stress", "shade_protection", "kelp_expansion", "predation_pressure", "mussel_overcrowd"];
+  const expectedIds = [
+    "low_tide_stress",
+    "shade_protection",
+    "kelp_expansion",
+    "predation_pressure",
+    "mussel_overcrowd"
+  ];
   expectedIds.forEach((id) => {
     assert.ok(ids.includes(id), `应包含原因类别 ${id}`);
   });

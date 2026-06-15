@@ -1,0 +1,41 @@
+{
+  "root": true,
+  "env": {
+    "browser": true,
+    "es2022": true,
+    "node": true
+  },
+  "globals": {
+    "TidepoolCore": "readonly",
+    "TidepoolState": "readonly",
+    "TidepoolEcosystem": "readonly",
+    "TidepoolRenderer": "readonly",
+    "TidepoolUI": "readonly"
+  },
+  "parserOptions": {
+    "ecmaVersion": 2022,
+    "sourceType": "script"
+  },
+  "rules": {
+    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    "no-undef": "error",
+    "no-console": "off",
+    "semi": ["error", "always"],
+    "quotes": ["error", "double", { "avoidEscape": true }],
+    "eqeqeq": ["warn", "smart"],
+    "no-var": "warn",
+    "prefer-const": "warn"
+  },
+  "overrides": [
+    {
+      "files": ["test.js"],
+      "env": {
+        "node": true,
+        "mocha": false
+      },
+      "rules": {
+        "no-unused-vars": "off"
+      }
+    }
+  ]
+}

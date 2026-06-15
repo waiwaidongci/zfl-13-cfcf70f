@@ -1,8 +1,6 @@
 (function (root, factory) {
   if (typeof module === "object" && typeof module.exports === "object") {
-    module.exports = factory(
-      root.TidepoolState || require("./state.js")
-    );
+    module.exports = factory(root.TidepoolState || require("./state.js"));
   } else {
     root.TidepoolRenderer = factory(root.TidepoolState);
   }
@@ -31,7 +29,7 @@
     function star(cx, cy, radius, points) {
       ctx.beginPath();
       for (let i = 0; i < points * 2; i += 1) {
-        const angle = -Math.PI / 2 + i * Math.PI / points;
+        const angle = -Math.PI / 2 + (i * Math.PI) / points;
         const r = i % 2 ? radius * 0.42 : radius;
         ctx.lineTo(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r);
       }
@@ -84,7 +82,12 @@
         for (let i = 0; i < 3; i += 1) {
           ctx.beginPath();
           ctx.moveTo(x + w * (0.34 + i * 0.12), y + h * 0.78);
-          ctx.quadraticCurveTo(x + w * (0.22 + i * 0.16), y + h * 0.45, x + w * (0.38 + i * 0.13), y + h * 0.18);
+          ctx.quadraticCurveTo(
+            x + w * (0.22 + i * 0.16),
+            y + h * 0.45,
+            x + w * (0.38 + i * 0.13),
+            y + h * 0.18
+          );
           ctx.stroke();
         }
       }
@@ -93,7 +96,15 @@
         for (let i = 0; i < cell.mussel; i += 1) {
           ctx.fillStyle = "#344b64";
           ctx.beginPath();
-          ctx.ellipse(x + w * (0.32 + i * 0.14), y + h * 0.65, w * 0.08, h * 0.12, -0.55, 0, Math.PI * 2);
+          ctx.ellipse(
+            x + w * (0.32 + i * 0.14),
+            y + h * 0.65,
+            w * 0.08,
+            h * 0.12,
+            -0.55,
+            0,
+            Math.PI * 2
+          );
           ctx.fill();
         }
       }
@@ -107,7 +118,11 @@
     function draw() {
       const level = tideLevel();
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      state.grid.flat().forEach((cell) => drawCell(cell, canvas.width / state.cols, canvas.height / state.rows, level));
+      state.grid
+        .flat()
+        .forEach((cell) =>
+          drawCell(cell, canvas.width / state.cols, canvas.height / state.rows, level)
+        );
       ctx.fillStyle = `rgba(37, 91, 107, ${0.18 + level / 420})`;
       ctx.fillRect(0, canvas.height * (1 - level / 100), canvas.width, canvas.height);
     }

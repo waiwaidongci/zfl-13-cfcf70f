@@ -1,0 +1,22 @@
+{
+  "name": "tidepool-steward",
+  "version": "1.0.0",
+  "description": "潮汐池生态模拟 — 静态浏览器 Canvas 小游戏",
+  "private": true,
+  "scripts": {
+    "start": "http-server . -p 8080 -c-1 -o",
+    "dev": "http-server . -p 8080 -c-1 -o",
+    "serve": "http-server . -p 8080 -c-1",
+    "test": "node test.js",
+    "lint": "eslint \"*.js\"",
+    "lint:fix": "eslint \"*.js\" --fix",
+    "format": "prettier --check \"*.{js,css,html,md}\"",
+    "format:fix": "prettier --write \"*.{js,css,html,md}\"",
+    "check": "npm run lint && npm test && npm run format"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "http-server": "^14.1.1",
+    "prettier": "^3.2.5"
+  }
+}

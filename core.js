@@ -6,9 +6,7 @@
   }
 })(typeof self !== "undefined" ? self : this, function () {
   function deepCloneGrid(source) {
-    return source.map((row) =>
-      row.map((cell) => ({ ...cell }))
-    );
+    return source.map((row) => row.map((cell) => ({ ...cell })));
   }
 
   function tideLevel(tick) {
@@ -42,7 +40,8 @@
     const shelter = Math.min(22, sum.rock * 1.2 + sum.shade * 1.6);
     const food = Math.min(26, sum.kelp * 3 + sum.mussels * 0.8);
     const crowdPenalty = Math.max(0, sum.mussels - 28) * 1.4 + Math.max(0, sum.crabs - 12) * 2;
-    const balance = 24 - Math.abs(sum.snails - sum.kelp * 3) * 0.7 - Math.abs(sum.stars * 4 - sum.mussels) * 0.42;
+    const balance =
+      24 - Math.abs(sum.snails - sum.kelp * 3) * 0.7 - Math.abs(sum.stars * 4 - sum.mussels) * 0.42;
     const base = 28;
     return { shelter, food, crowdPenalty, balance, base };
   }
@@ -75,7 +74,11 @@
         let detected = null;
         if (tide <= 28 && (snailLoss >= 1 || musselLoss >= 1)) {
           const strength = Math.min(3, Math.max(1, Math.ceil(totalLoss / 3)));
-          detected = { id: "low_tide_stress", strength, delta: Math.min(scoreDelta, -totalLoss || -1) };
+          detected = {
+            id: "low_tide_stress",
+            strength,
+            delta: Math.min(scoreDelta, -totalLoss || -1)
+          };
         } else if (tide <= 20 && shadeCoverage < 6 && scoreDelta <= 0) {
           const strength = Math.min(2, Math.max(1, Math.round((6 - shadeCoverage) / 3)));
           detected = { id: "low_tide_stress", strength, delta: scoreDelta || -1 };
@@ -98,10 +101,18 @@
         const scoreDelta = rawNetDelta;
         if ((shadeDelta > 0 || rockDelta > 0) && shelterDelta > 0) {
           const strength = Math.min(3, Math.max(1, Math.round(shelterDelta / 2)));
-          const actualDelta = Math.round(scoreDelta) >= 0 ? Math.round(Math.max(1, shelterDelta)) : Math.round(shelterDelta);
+          const actualDelta =
+            Math.round(scoreDelta) >= 0
+              ? Math.round(Math.max(1, shelterDelta))
+              : Math.round(shelterDelta);
           return { id: "shade_protection", strength, delta: actualDelta };
         }
-        if (tide <= 35 && currSum.shade >= 2 && scoreDelta > 0 && (currSum.snails >= prevSum.snails)) {
+        if (
+          tide <= 35 &&
+          currSum.shade >= 2 &&
+          scoreDelta > 0 &&
+          currSum.snails >= prevSum.snails
+        ) {
           const strength = Math.min(2, Math.max(1, Math.round(scoreDelta / 2)));
           return { id: "shade_protection", strength, delta: Math.round(scoreDelta) };
         }
@@ -140,7 +151,8 @@
         const snailDelta = currSum.snails - prevSum.snails;
         const crabDelta = currSum.crabs - prevSum.crabs;
         let predLoss = 0;
-        if (starDelta >= 0 && musselDelta < 0 && prevSum.stars > 0) predLoss += Math.abs(musselDelta);
+        if (starDelta >= 0 && musselDelta < 0 && prevSum.stars > 0)
+          predLoss += Math.abs(musselDelta);
         if (crabDelta >= 0 && snailDelta < 0 && prevSum.crabs > 0) predLoss += Math.abs(snailDelta);
         const scoreDelta = rawNetDelta;
         if (predLoss >= 2) {
@@ -167,7 +179,11 @@
         }
         if (currSum.mussels > 28) {
           const strength = Math.min(2, Math.max(1, Math.round((currSum.mussels - 28) / 8)));
-          return { id: "mussel_overcrowd", strength, delta: -Math.round(currComps.crowdPenalty) || -1 };
+          return {
+            id: "mussel_overcrowd",
+            strength,
+            delta: -Math.round(currComps.crowdPenalty) || -1
+          };
         }
         return null;
       }

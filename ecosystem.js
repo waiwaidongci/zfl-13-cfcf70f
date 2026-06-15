@@ -150,7 +150,8 @@
         }
 
         if (cell.mussel > 4 && Math.random() < 0.12) cell.stars = Math.min(2, cell.stars + 1);
-        if (cell.snails > 3 && shelter && Math.random() < 0.1) cell.crabs = Math.min(3, cell.crabs + 1);
+        if (cell.snails > 3 && shelter && Math.random() < 0.1)
+          cell.crabs = Math.min(3, cell.crabs + 1);
       });
 
       const currSum = totals();
@@ -212,36 +213,60 @@
       case "threshold": {
         const current = score;
         const expired = state.day > goal.deadline;
-        if (current < goal.target) return { state: "fail", detail: `${current}/${goal.target}（第${state.day}天低于目标）` };
+        if (current < goal.target)
+          return { state: "fail", detail: `${current}/${goal.target}（第${state.day}天低于目标）` };
         if (expired) {
           return { state: "pass", detail: `维持至第${goal.deadline}天：${current}/${goal.target}` };
         }
-        return { state: "active", detail: `当前达标 ${current}/${goal.target}（待第${goal.deadline}天验证）` };
+        return {
+          state: "active",
+          detail: `当前达标 ${current}/${goal.target}（待第${goal.deadline}天验证）`
+        };
       }
       case "range_min": {
         const current = sum.mussels;
         if (state.day >= goal.startDay && state.day <= goal.endDay) {
-          if (current < goal.target) return { state: "fail", detail: `${current}只跌破下限${goal.target}（第${state.day}天）` };
-          return { state: "active", detail: `${current}只，维持中（第${state.day}天/第${goal.endDay}天）` };
+          if (current < goal.target)
+            return {
+              state: "fail",
+              detail: `${current}只跌破下限${goal.target}（第${state.day}天）`
+            };
+          return {
+            state: "active",
+            detail: `${current}只，维持中（第${state.day}天/第${goal.endDay}天）`
+          };
         }
-        if (state.day > goal.endDay) return { state: "pass", detail: `第${goal.startDay}-${goal.endDay}天维持达标` };
+        if (state.day > goal.endDay)
+          return { state: "pass", detail: `第${goal.startDay}-${goal.endDay}天维持达标` };
         return { state: "active", detail: `${current}只（等待第${goal.startDay}天）` };
       }
       case "range_max": {
         const current = sum.mussels;
         if (state.day >= goal.startDay && state.day <= goal.endDay) {
-          if (current > goal.target) return { state: "fail", detail: `${current}只超出上限${goal.target}（第${state.day}天）` };
-          return { state: "active", detail: `${current}只，维持中（第${state.day}天/第${goal.endDay}天）` };
+          if (current > goal.target)
+            return {
+              state: "fail",
+              detail: `${current}只超出上限${goal.target}（第${state.day}天）`
+            };
+          return {
+            state: "active",
+            detail: `${current}只，维持中（第${state.day}天/第${goal.endDay}天）`
+          };
         }
-        if (state.day > goal.endDay) return { state: "pass", detail: `第${goal.startDay}-${goal.endDay}天未超限` };
+        if (state.day > goal.endDay)
+          return { state: "pass", detail: `第${goal.startDay}-${goal.endDay}天未超限` };
         return { state: "active", detail: `${current}只（等待第${goal.startDay}天）` };
       }
       case "max_count": {
         const current = state.challengeStressCount;
         const expired = state.day > goal.deadline;
-        if (current > goal.target) return { state: "fail", detail: `${current}/${goal.target}（已超限）` };
+        if (current > goal.target)
+          return { state: "fail", detail: `${current}/${goal.target}（已超限）` };
         if (expired) return { state: "pass", detail: `10天内共${current}次（≤${goal.target}）` };
-        return { state: "active", detail: `${current}/${goal.target}（第${state.day}天/第${goal.deadline}天）` };
+        return {
+          state: "active",
+          detail: `${current}/${goal.target}（第${state.day}天/第${goal.deadline}天）`
+        };
       }
       default:
         return { state: "active", detail: "" };
