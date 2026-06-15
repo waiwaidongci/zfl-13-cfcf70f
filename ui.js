@@ -319,6 +319,7 @@
 
   function handleReset() {
     resetSimulationState();
+    setAutoButtonState(false, refs.autoBtn);
     eventLogReset();
     hideChallengeStatus();
     refreshAll();
