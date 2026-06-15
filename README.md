@@ -4,6 +4,46 @@
 
 玩家通过放置岩缝、海藻、贝群和遮阴来维持潮间带生态稳定。系统包含潮汐循环、物种数量变化、捕食关系、低水位压力、生态稳定度评分和生态预算机制。
 
+## 模块架构
+
+为了便于后续扩展玩法，代码已拆分为清晰的分层模块。所有模块使用 UMD 封装，静态页面可直接打开运行，无需构建工具。
+
+### 文件结构
+
+| 文件 | 模块名 | 职责说明 |
+|------|--------|----------|
+| `core.js` | `TidepoolCore` | 纯计算核心：潮位计算、稳定度评分、物种统计、变化解释、邻格查找等（无 DOM 依赖，可 Node.js 测试） |
+| `state.js` | `TidepoolState` | 状态模型：grid 地图、tick/day/budget、挑战进度、反馈历史、序列化/反序列化、沙盘存储工具 |
+| `ecosystem.js` | `TidepoolEcosystem` | 生态推进规则：工具应用（applyTool）、半日推进（advance）、挑战目标评估、开始/退出挑战 |
+| `renderer.js` | `TidepoolRenderer` | Canvas 绘制层：绘制格子、动物、辅助图形、坐标换算、点击命中检测 |
+| `ui.js` | `TidepoolUI` | DOM 更新与事件绑定：面板刷新、反馈面板、挑战面板、沙盘管理、所有事件监听器 |
+| `app.js` | — | 主入口：监听 `DOMContentLoaded`，调用 `TidepoolUI.initUI()` 启动应用 |
+| `styles.css` | — | 样式表（未改动，保持原有外观） |
+| `index.html` | — | 页面结构（仅更新了 `<script>` 引用顺序） |
+| `test.js` | — | core.js 的 Node.js 单元测试 |
+
+### 依赖关系（加载顺序）
+
+```
+core.js → state.js → ecosystem.js → renderer.js → ui.js → app.js
+```
+
+- 每个模块通过 IIFE + UMD 模式注册到全局 `window`
+- 下层模块不直接引用上层，避免循环依赖
+- `core.js` 保持纯计算纯净，所有带副作用的操作均在 `ecosystem.js` 及以上层
+
+### 典型扩展玩法的修改位置
+
+| 想加的玩法 | 修改哪个模块 |
+|-----------|-------------|
+| 新增工具/元素类型 | `state.js`（TOOL_COSTS）+ `ecosystem.js`（applyTool）+ `renderer.js`（drawCell）+ `ui.js`（按钮）+ `index.html`（DOM） |
+| 新增捕食/繁殖规则 | `ecosystem.js`（advance 函数中的 forEach 回调） |
+| 调整稳定度公式 | `core.js`（stabilityComponents / stabilityScore） |
+| 新增挑战类型 | `state.js`（CHALLENGES 数组）+ `ecosystem.js`（evaluateGoal 新增 case） |
+| 新增绘制层特效 | `renderer.js`（draw / drawCell 等） |
+| 新增 UI 面板/弹窗 | `ui.js`（refs 引用 + 渲染函数 + 事件绑定）+ `index.html`（DOM）+ `styles.css`（样式） |
+| 沙盘字段扩展 | `state.js`（serializeState / deserializeState） |
+
 ## 核心测试
 
 核心计算逻辑已从浏览器交互代码中拆分，位于 `core.js`。可通过 Node.js 运行轻量测试：
