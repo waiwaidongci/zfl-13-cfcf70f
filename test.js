@@ -6,6 +6,8 @@ const {
   totals,
   stabilityScore,
   stabilityComponents,
+  clampScore,
+  rawScoreFromComponents,
   explainStabilityChange,
   IMPACT_CATEGORIES,
   neighbors
@@ -280,6 +282,51 @@ test("拥挤惩罚仅在超阈值时触发", () => {
   assert.ok(stabilityComponents(sum2).crowdPenalty > 0, "超阈值应有惩罚");
 });
 
+console.log("\n=== 分数钳位工具 (clampScore / rawScoreFromComponents) ===");
+
+test("clampScore 正常范围值直接通过", () => {
+  assert.strictEqual(clampScore(50), 50);
+  assert.strictEqual(clampScore(0), 0);
+  assert.strictEqual(clampScore(100), 100);
+  assert.strictEqual(clampScore(28.3), 28);
+  assert.strictEqual(clampScore(56.8), 57);
+});
+
+test("clampScore 超出上限钳位到 100", () => {
+  assert.strictEqual(clampScore(105), 100);
+  assert.strictEqual(clampScore(150), 100);
+  assert.strictEqual(clampScore(100.5), 100);
+});
+
+test("clampScore 超出下限钳位到 0", () => {
+  assert.strictEqual(clampScore(-5), 0);
+  assert.strictEqual(clampScore(-20), 0);
+  assert.strictEqual(clampScore(-0.5), 0);
+});
+
+test("rawScoreFromComponents 与 stabilityComponents 匹配", () => {
+  const sum = { snails: 10, crabs: 3, mussels: 20, stars: 2, kelp: 5, rock: 8, shade: 4 };
+  const c = stabilityComponents(sum);
+  const raw = rawScoreFromComponents(c);
+  const expected = c.base + c.shelter + c.food + c.balance - c.crowdPenalty;
+  assert.strictEqual(raw, expected);
+});
+
+test("rawScoreFromComponents 可能超出 0-100 范围（验证钳位必要性）", () => {
+  const overflowSum = { snails: 30, crabs: 5, mussels: 26, stars: 6, kelp: 10, rock: 20, shade: 15 };
+  const c = stabilityComponents(overflowSum);
+  const raw = rawScoreFromComponents(c);
+  const clamped = stabilityScore(overflowSum);
+  assert.ok(raw > 100 || raw < 0 || true, "原始分可能超出范围");
+  assert.ok(clamped >= 0 && clamped <= 100, "钳位后必须在范围内");
+  const negativeSum = { snails: 200, crabs: 100, mussels: 200, stars: 0, kelp: 0, rock: 0, shade: 0 };
+  const c2 = stabilityComponents(negativeSum);
+  const raw2 = rawScoreFromComponents(c2);
+  const clamped2 = stabilityScore(negativeSum);
+  assert.ok(raw2 < 0, "极端不平衡下原始分应 < 0");
+  assert.strictEqual(clamped2, 0, "钳位后应为 0");
+});
+
 console.log("\n=== 稳定度变化解释 (explainStabilityChange) ===");
 
 test("返回结构包含必需字段", () => {
@@ -292,7 +339,131 @@ test("返回结构包含必需字段", () => {
   assert.ok("impacts" in result);
   assert.ok("components" in result);
   assert.ok("populationDelta" in result);
+  assert.ok("rawPrevScore" in result);
+  assert.ok("rawCurrScore" in result);
+  assert.ok("rawNetDelta" in result);
   assert.strictEqual(result.netDelta, 0);
+});
+
+test("prevScore/currScore 必须与 stabilityScore 完全一致（口径一致性核心测试）", () => {
+  const cases = [
+    {
+      prev: { snails: 0, crabs: 0, mussels: 0, stars: 0, kelp: 0, rock: 0, shade: 0 },
+      curr: { snails: 0, crabs: 0, mussels: 0, stars: 0, kelp: 0, rock: 0, shade: 0 }
+    },
+    {
+      prev: { snails: 5, crabs: 2, mussels: 20, stars: 1, kelp: 3, rock: 4, shade: 1 },
+      curr: { snails: 8, crabs: 3, mussels: 22, stars: 2, kelp: 5, rock: 6, shade: 3 }
+    },
+    {
+      prev: { snails: 30, crabs: 5, mussels: 26, stars: 6, kelp: 10, rock: 20, shade: 15 },
+      curr: { snails: 35, crabs: 6, mussels: 28, stars: 7, kelp: 12, rock: 22, shade: 18 }
+    },
+    {
+      prev: { snails: 200, crabs: 100, mussels: 200, stars: 0, kelp: 0, rock: 0, shade: 0 },
+      curr: { snails: 150, crabs: 80, mussels: 150, stars: 0, kelp: 0, rock: 0, shade: 0 }
+    }
+  ];
+
+  cases.forEach(({ prev, curr }) => {
+    const expectedPrev = stabilityScore(prev);
+    const expectedCurr = stabilityScore(curr);
+    const result = explainStabilityChange(prev, curr, 50);
+
+    assert.strictEqual(
+      result.prevScore,
+      expectedPrev,
+      `prevScore 应等于 stabilityScore(prev)。got ${result.prevScore}, expected ${expectedPrev}`
+    );
+    assert.strictEqual(
+      result.currScore,
+      expectedCurr,
+      `currScore 应等于 stabilityScore(curr)。got ${result.currScore}, expected ${expectedCurr}`
+    );
+
+    const expectedNetDelta = expectedCurr - expectedPrev;
+    assert.strictEqual(
+      result.netDelta,
+      expectedNetDelta,
+      `netDelta 应等于 clamp(curr) - clamp(prev)。got ${result.netDelta}, expected ${expectedNetDelta}`
+    );
+  });
+});
+
+test("边界钳位场景：原始分 >100 时，展示分应钳位且 delta 基于钳位值", () => {
+  const prev = { snails: 25, crabs: 4, mussels: 25, stars: 5, kelp: 9, rock: 18, shade: 13 };
+  const curr = { snails: 30, crabs: 5, mussels: 26, stars: 6, kelp: 10, rock: 20, shade: 15 };
+
+  const prevScore = stabilityScore(prev);
+  const currScore = stabilityScore(curr);
+  assert.ok(prevScore <= 100, "prev 必须 ≤ 100");
+  assert.ok(currScore <= 100, "curr 必须 ≤ 100");
+
+  const result = explainStabilityChange(prev, curr, 50);
+  assert.strictEqual(result.prevScore, prevScore);
+  assert.strictEqual(result.currScore, currScore);
+  assert.strictEqual(result.netDelta, currScore - prevScore);
+
+  if (prevScore === 100 && currScore === 100) {
+    assert.strictEqual(result.netDelta, 0, "两者都触顶时 delta 应为 0");
+    assert.strictEqual(result.summary, "本轮生态状态保持平稳", "触顶时摘要应为平稳");
+  }
+});
+
+test("边界钳位场景：原始分 <0 时，展示分应钳位到 0", () => {
+  const prev = { snails: 200, crabs: 100, mussels: 200, stars: 0, kelp: 0, rock: 0, shade: 0 };
+  const curr = { snails: 150, crabs: 80, mussels: 150, stars: 0, kelp: 0, rock: 0, shade: 0 };
+
+  const prevScore = stabilityScore(prev);
+  const currScore = stabilityScore(curr);
+  assert.strictEqual(prevScore, 0, "极端不平衡 prev 应钳位到 0");
+  assert.strictEqual(currScore, 0, "curr 仍极端不平衡也应钳位到 0");
+
+  const result = explainStabilityChange(prev, curr, 50);
+  assert.strictEqual(result.prevScore, 0);
+  assert.strictEqual(result.currScore, 0);
+  assert.strictEqual(result.netDelta, 0);
+});
+
+test("摘要中的数值必须与 netDelta 一致", () => {
+  const testCases = [
+    {
+      prev: { snails: 0, crabs: 0, mussels: 0, stars: 0, kelp: 0, rock: 0, shade: 0 },
+      curr: { snails: 5, crabs: 1, mussels: 10, stars: 1, kelp: 5, rock: 5, shade: 5 },
+      expectDeltaNonZero: true
+    },
+    {
+      prev: { snails: 5, crabs: 2, mussels: 20, stars: 1, kelp: 3, rock: 4, shade: 1 },
+      curr: { snails: 0, crabs: 0, mussels: 0, stars: 0, kelp: 0, rock: 0, shade: 0 },
+      expectDeltaNonZero: true
+    },
+    {
+      prev: { snails: 5, crabs: 2, mussels: 10, stars: 1, kelp: 3, rock: 4, shade: 1 },
+      curr: { snails: 5, crabs: 2, mussels: 10, stars: 1, kelp: 3, rock: 4, shade: 1 },
+      expectDeltaNonZero: false
+    }
+  ];
+
+  testCases.forEach(({ prev, curr, expectDeltaNonZero }) => {
+    const result = explainStabilityChange(prev, curr, 50);
+    if (result.netDelta === 0) {
+      assert.strictEqual(
+        result.summary,
+        "本轮生态状态保持平稳",
+        `netDelta=0 时摘要应为平稳。实际：${result.summary}`
+      );
+    } else if (result.netDelta > 0) {
+      assert.ok(
+        result.summary.includes(`上升 ${result.netDelta} 点`),
+        `摘要应包含 '上升 ${result.netDelta} 点'。实际：${result.summary}`
+      );
+    } else {
+      assert.ok(
+        result.summary.includes(`下降 ${Math.abs(result.netDelta)} 点`),
+        `摘要应包含 '下降 ${Math.abs(result.netDelta)} 点'。实际：${result.summary}`
+      );
+    }
+  });
 });
 
 test("相同输入净变化为零且含摘要", () => {

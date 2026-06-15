@@ -47,9 +47,17 @@
     return { shelter, food, crowdPenalty, balance, base };
   }
 
+  function clampScore(raw) {
+    return Math.max(0, Math.min(100, Math.round(raw)));
+  }
+
+  function rawScoreFromComponents(c) {
+    return c.base + c.shelter + c.food + c.balance - c.crowdPenalty;
+  }
+
   function stabilityScore(sum) {
     const c = stabilityComponents(sum);
-    return Math.max(0, Math.min(100, Math.round(c.base + c.shelter + c.food + c.balance - c.crowdPenalty)));
+    return clampScore(rawScoreFromComponents(c));
   }
 
   const IMPACT_CATEGORIES = [
@@ -58,10 +66,8 @@
       label: "低潮失水",
       polarity: "negative",
       detect: (ctx) => {
-        const { prevSum, currSum, tide, prevComps, currComps } = ctx;
-        const rawScoreDelta = (currComps.base + currComps.shelter + currComps.food + currComps.balance - currComps.crowdPenalty)
-          - (prevComps.base + prevComps.shelter + prevComps.food + prevComps.balance - prevComps.crowdPenalty);
-        const scoreDelta = Math.round(rawScoreDelta);
+        const { prevSum, currSum, tide, rawNetDelta } = ctx;
+        const scoreDelta = Math.round(rawNetDelta);
         const snailLoss = prevSum.snails - currSum.snails;
         const musselLoss = prevSum.mussels - currSum.mussels;
         const shadeCoverage = currSum.shade + currSum.rock;
@@ -85,12 +91,11 @@
       label: "遮阴保护",
       polarity: "positive",
       detect: (ctx) => {
-        const { prevSum, currSum, tide, prevComps, currComps } = ctx;
+        const { prevSum, currSum, tide, prevComps, currComps, rawNetDelta } = ctx;
         const shelterDelta = currComps.shelter - prevComps.shelter;
         const shadeDelta = currSum.shade - prevSum.shade;
         const rockDelta = currSum.rock - prevSum.rock;
-        const scoreDelta = (currComps.base + currComps.shelter + currComps.food + currComps.balance - currComps.crowdPenalty)
-          - (prevComps.base + prevComps.shelter + prevComps.food + prevComps.balance - prevComps.crowdPenalty);
+        const scoreDelta = rawNetDelta;
         if ((shadeDelta > 0 || rockDelta > 0) && shelterDelta > 0) {
           const strength = Math.min(3, Math.max(1, Math.round(shelterDelta / 2)));
           const actualDelta = Math.round(scoreDelta) >= 0 ? Math.round(Math.max(1, shelterDelta)) : Math.round(shelterDelta);
@@ -108,7 +113,7 @@
       label: "海藻扩张",
       polarity: "positive",
       detect: (ctx) => {
-        const { prevSum, currSum, prevComps, currComps } = ctx;
+        const { prevSum, currSum, prevComps, currComps, rawNetDelta } = ctx;
         const kelpDelta = currSum.kelp - prevSum.kelp;
         const foodDelta = currComps.food - prevComps.food;
         if (kelpDelta > 0 && foodDelta > 0) {
@@ -118,8 +123,7 @@
         const snailDelta = currSum.snails - prevSum.snails;
         if (kelpDelta > 0 && snailDelta > 0) {
           const strength = Math.min(2, Math.max(1, Math.ceil((kelpDelta + snailDelta) / 3)));
-          const scoreDelta = (currComps.base + currComps.shelter + currComps.food + currComps.balance - currComps.crowdPenalty)
-            - (prevComps.base + prevComps.shelter + prevComps.food + prevComps.balance - prevComps.crowdPenalty);
+          const scoreDelta = rawNetDelta;
           return { id: "kelp_expansion", strength, delta: Math.max(1, Math.round(scoreDelta)) };
         }
         return null;
@@ -130,7 +134,7 @@
       label: "捕食压力",
       polarity: "negative",
       detect: (ctx) => {
-        const { prevSum, currSum, prevComps, currComps } = ctx;
+        const { prevSum, currSum, rawNetDelta } = ctx;
         const starDelta = currSum.stars - prevSum.stars;
         const musselDelta = currSum.mussels - prevSum.mussels;
         const snailDelta = currSum.snails - prevSum.snails;
@@ -138,8 +142,7 @@
         let predLoss = 0;
         if (starDelta >= 0 && musselDelta < 0 && prevSum.stars > 0) predLoss += Math.abs(musselDelta);
         if (crabDelta >= 0 && snailDelta < 0 && prevSum.crabs > 0) predLoss += Math.abs(snailDelta);
-        const scoreDelta = (currComps.base + currComps.shelter + currComps.food + currComps.balance - currComps.crowdPenalty)
-          - (prevComps.base + prevComps.shelter + prevComps.food + prevComps.balance - prevComps.crowdPenalty);
+        const scoreDelta = rawNetDelta;
         if (predLoss >= 2) {
           const strength = Math.min(3, Math.max(1, Math.round(predLoss / 2)));
           return { id: "predation_pressure", strength, delta: Math.round(scoreDelta) };
@@ -174,7 +177,7 @@
       label: "物种平衡",
       polarity: "neutral",
       detect: (ctx) => {
-        const { prevComps, currComps, prevSum, currSum } = ctx;
+        const { prevComps, currComps } = ctx;
         const balanceDelta = currComps.balance - prevComps.balance;
         if (Math.abs(balanceDelta) >= 3) {
           const strength = Math.min(3, Math.max(1, Math.round(Math.abs(balanceDelta) / 3)));
@@ -188,11 +191,26 @@
   function explainStabilityChange(prevSum, currSum, tide) {
     const prevComps = stabilityComponents(prevSum);
     const currComps = stabilityComponents(currSum);
-    const prevScore = Math.round(prevComps.base + prevComps.shelter + prevComps.food + prevComps.balance - prevComps.crowdPenalty);
-    const currScore = Math.round(currComps.base + currComps.shelter + currComps.food + currComps.balance - currComps.crowdPenalty);
+    const rawPrevScore = rawScoreFromComponents(prevComps);
+    const rawCurrScore = rawScoreFromComponents(currComps);
+    const rawNetDelta = rawCurrScore - rawPrevScore;
+    const prevScore = clampScore(rawPrevScore);
+    const currScore = clampScore(rawCurrScore);
     const netDelta = currScore - prevScore;
 
-    const ctx = { prevSum, currSum, tide, prevComps, currComps, prevScore, currScore, netDelta };
+    const ctx = {
+      prevSum,
+      currSum,
+      tide,
+      prevComps,
+      currComps,
+      rawPrevScore,
+      rawCurrScore,
+      rawNetDelta,
+      prevScore,
+      currScore,
+      netDelta
+    };
     const impacts = [];
 
     for (const cat of IMPACT_CATEGORIES) {
@@ -231,6 +249,9 @@
       prevScore,
       currScore,
       netDelta,
+      rawPrevScore: Math.round(rawPrevScore),
+      rawCurrScore: Math.round(rawCurrScore),
+      rawNetDelta: Math.round(rawNetDelta),
       summary,
       impacts,
       components: {
@@ -264,6 +285,8 @@
     phaseName,
     totals,
     stabilityComponents,
+    clampScore,
+    rawScoreFromComponents,
     stabilityScore,
     explainStabilityChange,
     IMPACT_CATEGORIES,
