@@ -46,6 +46,44 @@ let activeTool = "rock";
 let tick = 0;
 let day = 1;
 let autoTimer = null;
+let isAdvancing = false;
+
+const AUTO_ADVANCE_INTERVAL = 900;
+
+function isAutoRunning() {
+  return autoTimer !== null;
+}
+
+function setAutoButtonState(running) {
+  autoBtn.textContent = running ? "暂停推进" : "自动推进";
+  autoBtn.setAttribute("aria-pressed", running ? "true" : "false");
+  autoBtn.setAttribute("aria-label", running ? "暂停自动推进" : "启动自动推进");
+  autoBtn.classList.toggle("auto-active", running);
+}
+
+function stopAutoAdvance() {
+  if (autoTimer) {
+    clearInterval(autoTimer);
+    autoTimer = null;
+    setAutoButtonState(false);
+  }
+}
+
+function startAutoAdvance() {
+  if (isAdvancing) return;
+  if (challengeComplete || challengeFailed) return;
+  if (autoTimer) return;
+  autoTimer = setInterval(advance, AUTO_ADVANCE_INTERVAL);
+  setAutoButtonState(true);
+}
+
+function toggleAutoAdvance() {
+  if (isAutoRunning()) {
+    stopAutoAdvance();
+  } else {
+    startAutoAdvance();
+  }
+}
 
 const TOOL_COSTS = {
   rock: 3,
@@ -427,7 +465,10 @@ function showBudgetTip(text, type = "warn") {
 }
 
 function advance() {
+  if (isAdvancing) return;
   if (challengeComplete || challengeFailed) return;
+  isAdvancing = true;
+  try {
   const prevSum = totals();
   tick += 1;
   if (tick % 2 === 0) day += 1;
@@ -481,6 +522,9 @@ function advance() {
   updatePanel();
   updateFeedbackPanel(explain, day, currentPhase, level);
   if (currentChallenge) checkChallengeProgress();
+  } finally {
+    isAdvancing = false;
+  }
 }
 
 function applyTool(cell) {
@@ -603,16 +647,7 @@ toolButtons.forEach((button) => {
 
 document.querySelector("#advanceBtn").addEventListener("click", advance);
 document.querySelector("#resetBtn").addEventListener("click", resetSimulation);
-autoBtn.addEventListener("click", () => {
-  if (autoTimer) {
-    clearInterval(autoTimer);
-    autoTimer = null;
-    autoBtn.textContent = "自动推进";
-  } else {
-    autoTimer = setInterval(advance, 900);
-    autoBtn.textContent = "暂停推进";
-  }
-});
+autoBtn.addEventListener("click", toggleAutoAdvance);
 
 challengeBtn.addEventListener("click", openChallengeModal);
 closeChallengeBtn.addEventListener("click", closeChallengeModal);
@@ -664,11 +699,7 @@ function startChallenge(challenge) {
 }
 
 function quitChallenge() {
-  if (autoTimer) {
-    clearInterval(autoTimer);
-    autoTimer = null;
-    autoBtn.textContent = "自动推进";
-  }
+  stopAutoAdvance();
   currentChallenge = null;
   challengeComplete = false;
   challengeFailed = false;
@@ -679,11 +710,8 @@ function quitChallenge() {
 }
 
 function resetSimulation() {
-  if (autoTimer) {
-    clearInterval(autoTimer);
-    autoTimer = null;
-    autoBtn.textContent = "自动推进";
-  }
+  stopAutoAdvance();
+  isAdvancing = false;
   tick = 0;
   day = 1;
   budget = INITIAL_BUDGET;
@@ -792,19 +820,11 @@ function checkChallengeProgress() {
   if (anyFail) {
     challengeFailed = true;
     showChallengeStatus("fail", "挑战失败！点击重置再试一次。");
-    if (autoTimer) {
-      clearInterval(autoTimer);
-      autoTimer = null;
-      autoBtn.textContent = "自动推进";
-    }
+    stopAutoAdvance();
   } else if (allPass) {
     challengeComplete = true;
     showChallengeStatus("success", "挑战成功！生态管理出色。");
-    if (autoTimer) {
-      clearInterval(autoTimer);
-      autoTimer = null;
-      autoBtn.textContent = "自动推进";
-    }
+    stopAutoAdvance();
   }
 }
 
@@ -841,11 +861,8 @@ function serializeState() {
 }
 
 function deserializeState(state) {
-  if (autoTimer) {
-    clearInterval(autoTimer);
-    autoTimer = null;
-    autoBtn.textContent = "自动推进";
-  }
+  stopAutoAdvance();
+  isAdvancing = false;
 
   for (let y = 0; y < rows; y += 1) {
     for (let x = 0; x < cols; x += 1) {
@@ -936,12 +953,7 @@ function saveSandbox(name) {
     return false;
   }
 
-  const wasAutoRunning = !!autoTimer;
-  if (wasAutoRunning) {
-    clearInterval(autoTimer);
-    autoTimer = null;
-    autoBtn.textContent = "自动推进";
-  }
+  stopAutoAdvance();
 
   const state = serializeState();
   const sandboxes = getSandboxes();
@@ -1041,12 +1053,7 @@ function renderSandboxList() {
     });
 
     card.querySelector(".sandbox-overwrite-btn").addEventListener("click", () => {
-      const wasAutoRunning = !!autoTimer;
-      if (wasAutoRunning) {
-        clearInterval(autoTimer);
-        autoTimer = null;
-        autoBtn.textContent = "自动推进";
-      }
+      stopAutoAdvance();
       const state = serializeState();
       const list = getSandboxes();
       const idx = list.findIndex((s) => s.id === sb.id);
@@ -1068,11 +1075,7 @@ function renderSandboxList() {
 }
 
 function openSandboxModal() {
-  if (autoTimer) {
-    clearInterval(autoTimer);
-    autoTimer = null;
-    autoBtn.textContent = "自动推进";
-  }
+  stopAutoAdvance();
   renderSandboxList();
   sandboxNameInput.value = "";
   sandboxModal.classList.remove("hidden");
@@ -1109,3 +1112,8 @@ logEvent("潮汐池进入初始观察。");
 draw();
 updatePanel();
 updateFeedbackPanel(null, day, phaseName(tideLevel()), tideLevel());
+setAutoButtonState(false);
+
+window.addEventListener("beforeunload", () => {
+  stopAutoAdvance();
+});

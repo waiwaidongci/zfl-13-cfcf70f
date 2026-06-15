@@ -332,6 +332,26 @@ dd {
   border-color: var(--coral);
 }
 
+.actions button.auto-active {
+  color: white;
+  background: var(--deep);
+  border-color: var(--deep);
+  box-shadow: 0 0 0 2px rgba(37, 91, 107, 0.2);
+}
+
+.actions button.auto-active::before {
+  content: "●";
+  display: inline-block;
+  margin-right: 6px;
+  font-size: 10px;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
 @media (max-width: 980px) {
   .shell {
     grid-template-columns: 1fr;
