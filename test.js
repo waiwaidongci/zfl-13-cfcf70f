@@ -5,6 +5,9 @@ const {
   phaseName,
   totals,
   stabilityScore,
+  stabilityComponents,
+  explainStabilityChange,
+  IMPACT_CATEGORIES,
   neighbors
 } = require("./core.js");
 
@@ -233,6 +236,142 @@ test("深拷贝保留所有属性", () => {
   assert.strictEqual(copy[1][1].mussel, 3);
   assert.strictEqual(copy.length, 2);
   assert.strictEqual(copy[0].length, 2);
+});
+
+console.log("\n=== 稳定度分项 (stabilityComponents) ===");
+
+test("全零状态各分项有合理初始值", () => {
+  const sum = { snails: 0, crabs: 0, mussels: 0, stars: 0, kelp: 0, rock: 0, shade: 0 };
+  const c = stabilityComponents(sum);
+  assert.strictEqual(c.base, 28);
+  assert.strictEqual(c.shelter, 0);
+  assert.strictEqual(c.food, 0);
+  assert.strictEqual(c.crowdPenalty, 0);
+  assert.strictEqual(typeof c.balance, "number");
+  assert.ok(c.balance <= 24, "平衡分不应超过最大值 24");
+});
+
+test("分项之和加基础分等于总分", () => {
+  const cases = [
+    { snails: 0, crabs: 0, mussels: 0, stars: 0, kelp: 0, rock: 0, shade: 0 },
+    { snails: 10, crabs: 3, mussels: 20, stars: 2, kelp: 5, rock: 8, shade: 4 },
+    { snails: 50, crabs: 20, mussels: 80, stars: 10, kelp: 20, rock: 30, shade: 20 }
+  ];
+  cases.forEach((sum) => {
+    const c = stabilityComponents(sum);
+    const score = stabilityScore(sum);
+    const computed = Math.max(0, Math.min(100, Math.round(c.base + c.shelter + c.food + c.balance - c.crowdPenalty)));
+    assert.strictEqual(computed, score, `分项求和应等于 stabilityScore 结果`);
+  });
+});
+
+test("庇护分项随遮阴和岩缝单调递增", () => {
+  const sum1 = { snails: 0, crabs: 0, mussels: 0, stars: 0, kelp: 0, rock: 0, shade: 0 };
+  const sum2 = { snails: 0, crabs: 0, mussels: 0, stars: 0, kelp: 0, rock: 5, shade: 3 };
+  const sum3 = { snails: 0, crabs: 0, mussels: 0, stars: 0, kelp: 0, rock: 15, shade: 10 };
+  assert.ok(stabilityComponents(sum2).shelter > stabilityComponents(sum1).shelter);
+  assert.ok(stabilityComponents(sum3).shelter >= stabilityComponents(sum2).shelter);
+});
+
+test("拥挤惩罚仅在超阈值时触发", () => {
+  const sum1 = { snails: 0, crabs: 10, mussels: 25, stars: 0, kelp: 0, rock: 0, shade: 0 };
+  const sum2 = { snails: 0, crabs: 15, mussels: 35, stars: 0, kelp: 0, rock: 0, shade: 0 };
+  assert.strictEqual(stabilityComponents(sum1).crowdPenalty, 0);
+  assert.ok(stabilityComponents(sum2).crowdPenalty > 0, "超阈值应有惩罚");
+});
+
+console.log("\n=== 稳定度变化解释 (explainStabilityChange) ===");
+
+test("返回结构包含必需字段", () => {
+  const sum = { snails: 0, crabs: 0, mussels: 0, stars: 0, kelp: 0, rock: 0, shade: 0 };
+  const result = explainStabilityChange(sum, sum, 50);
+  assert.ok("prevScore" in result);
+  assert.ok("currScore" in result);
+  assert.ok("netDelta" in result);
+  assert.ok("summary" in result);
+  assert.ok("impacts" in result);
+  assert.ok("components" in result);
+  assert.ok("populationDelta" in result);
+  assert.strictEqual(result.netDelta, 0);
+});
+
+test("相同输入净变化为零且含摘要", () => {
+  const sum = { snails: 5, crabs: 2, mussels: 10, stars: 1, kelp: 3, rock: 4, shade: 1 };
+  const result = explainStabilityChange(sum, sum, 50);
+  assert.strictEqual(result.netDelta, 0);
+  assert.ok(result.summary.length > 0, "摘要不应为空字符串");
+  assert.ok(Array.isArray(result.impacts));
+});
+
+test("IMPACT_CATEGORIES 导出完整", () => {
+  assert.ok(Array.isArray(IMPACT_CATEGORIES));
+  assert.ok(IMPACT_CATEGORIES.length >= 5, "至少包含五类主因");
+  const ids = IMPACT_CATEGORIES.map((c) => c.id);
+  const expectedIds = ["low_tide_stress", "shade_protection", "kelp_expansion", "predation_pressure", "mussel_overcrowd"];
+  expectedIds.forEach((id) => {
+    assert.ok(ids.includes(id), `应包含原因类别 ${id}`);
+  });
+  IMPACT_CATEGORIES.forEach((cat) => {
+    assert.strictEqual(typeof cat.label, "string");
+    assert.strictEqual(typeof cat.detect, "function");
+  });
+});
+
+test("贝类过密 -> 拥挤惩罚增加触发 mussel_overcrowd", () => {
+  const sum1 = { snails: 0, crabs: 0, mussels: 25, stars: 0, kelp: 0, rock: 0, shade: 0 };
+  const sum2 = { snails: 0, crabs: 0, mussels: 40, stars: 0, kelp: 0, rock: 0, shade: 0 };
+  const result = explainStabilityChange(sum1, sum2, 60);
+  assert.ok(result.netDelta < 0, "过密应导致分数下降");
+  const found = result.impacts.find((i) => i.id === "mussel_overcrowd");
+  assert.ok(found, "应检测到贝类过密因素");
+  assert.ok(found.delta < 0, "过密贡献值应为负");
+});
+
+test("新增遮阴 -> 触发 shade_protection 正向", () => {
+  const sum1 = { snails: 3, crabs: 1, mussels: 10, stars: 1, kelp: 2, rock: 2, shade: 0 };
+  const sum2 = { snails: 3, crabs: 1, mussels: 10, stars: 1, kelp: 2, rock: 2, shade: 6 };
+  const result = explainStabilityChange(sum1, sum2, 50);
+  const found = result.impacts.find((i) => i.id === "shade_protection");
+  assert.ok(found, "应检测到遮阴保护因素");
+  assert.ok(found.delta > 0, "遮阴保护贡献值应为正");
+});
+
+test("海藻扩张 -> 触发 kelp_expansion 正向", () => {
+  const sum1 = { snails: 5, crabs: 1, mussels: 10, stars: 1, kelp: 2, rock: 2, shade: 1 };
+  const sum2 = { snails: 9, crabs: 1, mussels: 10, stars: 1, kelp: 5, rock: 2, shade: 1 };
+  const result = explainStabilityChange(sum1, sum2, 60);
+  const found = result.impacts.find((i) => i.id === "kelp_expansion");
+  assert.ok(found, "应检测到海藻扩张因素");
+});
+
+test("海星增加 -> 触发 predation_pressure", () => {
+  const sum1 = { snails: 8, crabs: 2, mussels: 20, stars: 1, kelp: 3, rock: 3, shade: 1 };
+  const sum2 = { snails: 8, crabs: 2, mussels: 14, stars: 3, kelp: 3, rock: 3, shade: 1 };
+  const result = explainStabilityChange(sum1, sum2, 55);
+  const found = result.impacts.find((i) => i.id === "predation_pressure");
+  assert.ok(found, "应检测到捕食压力因素");
+});
+
+test("低潮失水 -> 低水位+物种损失触发 low_tide_stress", () => {
+  const sum1 = { snails: 10, crabs: 2, mussels: 15, stars: 1, kelp: 2, rock: 1, shade: 0 };
+  const sum2 = { snails: 6, crabs: 2, mussels: 12, stars: 1, kelp: 2, rock: 1, shade: 0 };
+  const result = explainStabilityChange(sum1, sum2, 18);
+  const found = result.impacts.find((i) => i.id === "low_tide_stress");
+  assert.ok(found, "低潮+物种损失应触发低潮失水");
+  assert.ok(found.delta <= 0, "低潮失水贡献值应为负");
+});
+
+test("populationDelta 正确记录各物种增减", () => {
+  const sum1 = { snails: 5, crabs: 2, mussels: 10, stars: 1, kelp: 2, rock: 3, shade: 1 };
+  const sum2 = { snails: 8, crabs: 1, mussels: 15, stars: 2, kelp: 5, rock: 4, shade: 3 };
+  const result = explainStabilityChange(sum1, sum2, 50);
+  assert.strictEqual(result.populationDelta.snails, 3);
+  assert.strictEqual(result.populationDelta.crabs, -1);
+  assert.strictEqual(result.populationDelta.mussels, 5);
+  assert.strictEqual(result.populationDelta.stars, 1);
+  assert.strictEqual(result.populationDelta.kelp, 3);
+  assert.strictEqual(result.populationDelta.rock, 1);
+  assert.strictEqual(result.populationDelta.shade, 2);
 });
 
 console.log(`\n=== 测试完成：${passed} 通过，${failed} 失败 ===`);

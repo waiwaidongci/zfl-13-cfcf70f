@@ -38,12 +38,215 @@
     );
   }
 
-  function stabilityScore(sum) {
+  function stabilityComponents(sum) {
     const shelter = Math.min(22, sum.rock * 1.2 + sum.shade * 1.6);
     const food = Math.min(26, sum.kelp * 3 + sum.mussels * 0.8);
     const crowdPenalty = Math.max(0, sum.mussels - 28) * 1.4 + Math.max(0, sum.crabs - 12) * 2;
     const balance = 24 - Math.abs(sum.snails - sum.kelp * 3) * 0.7 - Math.abs(sum.stars * 4 - sum.mussels) * 0.42;
-    return Math.max(0, Math.min(100, Math.round(28 + shelter + food + balance - crowdPenalty)));
+    const base = 28;
+    return { shelter, food, crowdPenalty, balance, base };
+  }
+
+  function stabilityScore(sum) {
+    const c = stabilityComponents(sum);
+    return Math.max(0, Math.min(100, Math.round(c.base + c.shelter + c.food + c.balance - c.crowdPenalty)));
+  }
+
+  const IMPACT_CATEGORIES = [
+    {
+      id: "low_tide_stress",
+      label: "低潮失水",
+      polarity: "negative",
+      detect: (ctx) => {
+        const { prevSum, currSum, tide, prevComps, currComps } = ctx;
+        const rawScoreDelta = (currComps.base + currComps.shelter + currComps.food + currComps.balance - currComps.crowdPenalty)
+          - (prevComps.base + prevComps.shelter + prevComps.food + prevComps.balance - prevComps.crowdPenalty);
+        const scoreDelta = Math.round(rawScoreDelta);
+        const snailLoss = prevSum.snails - currSum.snails;
+        const musselLoss = prevSum.mussels - currSum.mussels;
+        const shadeCoverage = currSum.shade + currSum.rock;
+        const totalLoss = snailLoss + musselLoss;
+        let detected = null;
+        if (tide <= 28 && (snailLoss >= 1 || musselLoss >= 1)) {
+          const strength = Math.min(3, Math.max(1, Math.ceil(totalLoss / 3)));
+          detected = { id: "low_tide_stress", strength, delta: Math.min(scoreDelta, -totalLoss || -1) };
+        } else if (tide <= 20 && shadeCoverage < 6 && scoreDelta <= 0) {
+          const strength = Math.min(2, Math.max(1, Math.round((6 - shadeCoverage) / 3)));
+          detected = { id: "low_tide_stress", strength, delta: scoreDelta || -1 };
+        } else if (tide <= 28 && scoreDelta < 0 && shadeCoverage < 4) {
+          const strength = Math.min(2, Math.max(1, Math.round(Math.abs(scoreDelta) / 3)));
+          detected = { id: "low_tide_stress", strength, delta: scoreDelta };
+        }
+        return detected;
+      }
+    },
+    {
+      id: "shade_protection",
+      label: "遮阴保护",
+      polarity: "positive",
+      detect: (ctx) => {
+        const { prevSum, currSum, tide, prevComps, currComps } = ctx;
+        const shelterDelta = currComps.shelter - prevComps.shelter;
+        const shadeDelta = currSum.shade - prevSum.shade;
+        const rockDelta = currSum.rock - prevSum.rock;
+        const scoreDelta = (currComps.base + currComps.shelter + currComps.food + currComps.balance - currComps.crowdPenalty)
+          - (prevComps.base + prevComps.shelter + prevComps.food + prevComps.balance - prevComps.crowdPenalty);
+        if ((shadeDelta > 0 || rockDelta > 0) && shelterDelta > 0) {
+          const strength = Math.min(3, Math.max(1, Math.round(shelterDelta / 2)));
+          const actualDelta = Math.round(scoreDelta) >= 0 ? Math.round(Math.max(1, shelterDelta)) : Math.round(shelterDelta);
+          return { id: "shade_protection", strength, delta: actualDelta };
+        }
+        if (tide <= 35 && currSum.shade >= 2 && scoreDelta > 0 && (currSum.snails >= prevSum.snails)) {
+          const strength = Math.min(2, Math.max(1, Math.round(scoreDelta / 2)));
+          return { id: "shade_protection", strength, delta: Math.round(scoreDelta) };
+        }
+        return null;
+      }
+    },
+    {
+      id: "kelp_expansion",
+      label: "海藻扩张",
+      polarity: "positive",
+      detect: (ctx) => {
+        const { prevSum, currSum, prevComps, currComps } = ctx;
+        const kelpDelta = currSum.kelp - prevSum.kelp;
+        const foodDelta = currComps.food - prevComps.food;
+        if (kelpDelta > 0 && foodDelta > 0) {
+          const strength = Math.min(3, Math.max(1, kelpDelta));
+          return { id: "kelp_expansion", strength, delta: Math.round(foodDelta) };
+        }
+        const snailDelta = currSum.snails - prevSum.snails;
+        if (kelpDelta > 0 && snailDelta > 0) {
+          const strength = Math.min(2, Math.max(1, Math.ceil((kelpDelta + snailDelta) / 3)));
+          const scoreDelta = (currComps.base + currComps.shelter + currComps.food + currComps.balance - currComps.crowdPenalty)
+            - (prevComps.base + prevComps.shelter + prevComps.food + prevComps.balance - prevComps.crowdPenalty);
+          return { id: "kelp_expansion", strength, delta: Math.max(1, Math.round(scoreDelta)) };
+        }
+        return null;
+      }
+    },
+    {
+      id: "predation_pressure",
+      label: "捕食压力",
+      polarity: "negative",
+      detect: (ctx) => {
+        const { prevSum, currSum, prevComps, currComps } = ctx;
+        const starDelta = currSum.stars - prevSum.stars;
+        const musselDelta = currSum.mussels - prevSum.mussels;
+        const snailDelta = currSum.snails - prevSum.snails;
+        const crabDelta = currSum.crabs - prevSum.crabs;
+        let predLoss = 0;
+        if (starDelta >= 0 && musselDelta < 0 && prevSum.stars > 0) predLoss += Math.abs(musselDelta);
+        if (crabDelta >= 0 && snailDelta < 0 && prevSum.crabs > 0) predLoss += Math.abs(snailDelta);
+        const scoreDelta = (currComps.base + currComps.shelter + currComps.food + currComps.balance - currComps.crowdPenalty)
+          - (prevComps.base + prevComps.shelter + prevComps.food + prevComps.balance - prevComps.crowdPenalty);
+        if (predLoss >= 2) {
+          const strength = Math.min(3, Math.max(1, Math.round(predLoss / 2)));
+          return { id: "predation_pressure", strength, delta: Math.round(scoreDelta) };
+        }
+        if (starDelta > 0) {
+          const strength = Math.min(2, Math.max(1, starDelta));
+          return { id: "predation_pressure", strength, delta: Math.round(scoreDelta) || -1 };
+        }
+        return null;
+      }
+    },
+    {
+      id: "mussel_overcrowd",
+      label: "贝类过密",
+      polarity: "negative",
+      detect: (ctx) => {
+        const { currSum, prevComps, currComps } = ctx;
+        const crowdDelta = currComps.crowdPenalty - prevComps.crowdPenalty;
+        if (currSum.mussels > 28 && crowdDelta > 0) {
+          const strength = Math.min(3, Math.max(1, Math.round(crowdDelta / 3)));
+          return { id: "mussel_overcrowd", strength, delta: -Math.round(crowdDelta) };
+        }
+        if (currSum.mussels > 28) {
+          const strength = Math.min(2, Math.max(1, Math.round((currSum.mussels - 28) / 8)));
+          return { id: "mussel_overcrowd", strength, delta: -Math.round(currComps.crowdPenalty) || -1 };
+        }
+        return null;
+      }
+    },
+    {
+      id: "species_balance",
+      label: "物种平衡",
+      polarity: "neutral",
+      detect: (ctx) => {
+        const { prevComps, currComps, prevSum, currSum } = ctx;
+        const balanceDelta = currComps.balance - prevComps.balance;
+        if (Math.abs(balanceDelta) >= 3) {
+          const strength = Math.min(3, Math.max(1, Math.round(Math.abs(balanceDelta) / 3)));
+          return { id: "species_balance", strength, delta: Math.round(balanceDelta) };
+        }
+        return null;
+      }
+    }
+  ];
+
+  function explainStabilityChange(prevSum, currSum, tide) {
+    const prevComps = stabilityComponents(prevSum);
+    const currComps = stabilityComponents(currSum);
+    const prevScore = Math.round(prevComps.base + prevComps.shelter + prevComps.food + prevComps.balance - prevComps.crowdPenalty);
+    const currScore = Math.round(currComps.base + currComps.shelter + currComps.food + currComps.balance - currComps.crowdPenalty);
+    const netDelta = currScore - prevScore;
+
+    const ctx = { prevSum, currSum, tide, prevComps, currComps, prevScore, currScore, netDelta };
+    const impacts = [];
+
+    for (const cat of IMPACT_CATEGORIES) {
+      const result = cat.detect(ctx);
+      if (result) {
+        impacts.push({
+          ...result,
+          label: cat.label,
+          polarity: cat.polarity
+        });
+      }
+    }
+
+    impacts.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+
+    let summary;
+    if (netDelta > 0) {
+      const positive = impacts.filter((i) => i.delta > 0);
+      if (positive.length > 0) {
+        summary = `${positive[0].label}推动稳定度上升 ${netDelta} 点`;
+      } else {
+        summary = `生态状况改善，稳定度上升 ${netDelta} 点`;
+      }
+    } else if (netDelta < 0) {
+      const negative = impacts.filter((i) => i.delta < 0);
+      if (negative.length > 0) {
+        summary = `${negative[0].label}导致稳定度下降 ${Math.abs(netDelta)} 点`;
+      } else {
+        summary = `生态压力增加，稳定度下降 ${Math.abs(netDelta)} 点`;
+      }
+    } else {
+      summary = "本轮生态状态保持平稳";
+    }
+
+    return {
+      prevScore,
+      currScore,
+      netDelta,
+      summary,
+      impacts,
+      components: {
+        prev: prevComps,
+        curr: currComps
+      },
+      populationDelta: {
+        snails: currSum.snails - prevSum.snails,
+        crabs: currSum.crabs - prevSum.crabs,
+        mussels: currSum.mussels - prevSum.mussels,
+        stars: currSum.stars - prevSum.stars,
+        kelp: currSum.kelp - prevSum.kelp,
+        rock: currSum.rock - prevSum.rock,
+        shade: currSum.shade - prevSum.shade
+      }
+    };
   }
 
   function neighbors(grid, cell) {
@@ -60,7 +263,10 @@
     tideLevel,
     phaseName,
     totals,
+    stabilityComponents,
     stabilityScore,
+    explainStabilityChange,
+    IMPACT_CATEGORIES,
     neighbors
   };
 });

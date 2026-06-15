@@ -31,6 +31,12 @@ const sandboxNameInput = document.querySelector("#sandboxNameInput");
 const saveSandboxBtn = document.querySelector("#saveSandboxBtn");
 const sandboxListEl = document.querySelector("#sandboxList");
 const sandboxEmptyEl = document.querySelector("#sandboxEmpty");
+const deltaIndicatorEl = document.querySelector("#deltaIndicator");
+const deltaArrowEl = document.querySelector("#deltaArrow");
+const deltaValueEl = document.querySelector("#deltaValue");
+const feedbackSummaryEl = document.querySelector("#feedbackSummary");
+const feedbackImpactsEl = document.querySelector("#feedbackImpacts");
+const feedbackHistoryListEl = document.querySelector("#feedbackHistoryList");
 
 const SANDBOX_STORAGE_KEY = "tidepool_sandbox_scenarios";
 
@@ -117,7 +123,12 @@ const tideLevel = () => TidepoolCore.tideLevel(tick);
 const phaseName = TidepoolCore.phaseName;
 const totals = () => TidepoolCore.totals(grid);
 const stabilityScore = TidepoolCore.stabilityScore;
+const stabilityComponents = TidepoolCore.stabilityComponents;
+const explainStabilityChange = TidepoolCore.explainStabilityChange;
 const neighbors = (cell) => TidepoolCore.neighbors(grid, cell);
+
+let feedbackHistory = [];
+const FEEDBACK_HISTORY_MAX = 8;
 
 const initial = [
   "wwwwwwwwwwwwww",
@@ -266,6 +277,137 @@ function updatePanel() {
   budgetBar.parentElement.classList.toggle("budget-low", budget < 10);
 }
 
+function renderDeltaIndicator(netDelta) {
+  deltaIndicatorEl.classList.remove("delta-positive", "delta-negative", "delta-neutral");
+  if (netDelta > 0) {
+    deltaIndicatorEl.classList.add("delta-positive");
+    deltaArrowEl.textContent = "▲";
+    deltaValueEl.textContent = `+${netDelta}`;
+  } else if (netDelta < 0) {
+    deltaIndicatorEl.classList.add("delta-negative");
+    deltaArrowEl.textContent = "▼";
+    deltaValueEl.textContent = `${netDelta}`;
+  } else {
+    deltaIndicatorEl.classList.add("delta-neutral");
+    deltaArrowEl.textContent = "—";
+    deltaValueEl.textContent = "0";
+  }
+}
+
+function renderImpacts(impacts) {
+  feedbackImpactsEl.innerHTML = "";
+  if (!impacts || impacts.length === 0) {
+    const empty = document.createElement("span");
+    empty.className = "impact-empty";
+    empty.textContent = "本轮暂无显著影响因素";
+    feedbackImpactsEl.appendChild(empty);
+    return;
+  }
+  impacts.forEach((impact) => {
+    const tag = document.createElement("span");
+    tag.className = `impact-tag impact-${impact.id}`;
+    const strengthDots = Array.from({ length: 3 }, (_, i) =>
+      `<span class="${i < impact.strength ? "active" : ""}"></span>`
+    ).join("");
+    const deltaText = impact.delta > 0 ? `+${impact.delta}` : `${impact.delta}`;
+    tag.innerHTML = `
+      <span class="impact-label">${impact.label}</span>
+      <span class="impact-strength">${strengthDots}</span>
+      <span class="impact-delta">${deltaText}</span>
+    `;
+    feedbackImpactsEl.appendChild(tag);
+  });
+}
+
+function renderFeedbackSummary(netDelta, summary) {
+  feedbackSummaryEl.classList.remove("summary-positive", "summary-negative", "summary-neutral");
+  if (netDelta > 0) feedbackSummaryEl.classList.add("summary-positive");
+  else if (netDelta < 0) feedbackSummaryEl.classList.add("summary-negative");
+  else feedbackSummaryEl.classList.add("summary-neutral");
+  feedbackSummaryEl.textContent = summary;
+}
+
+function renderFeedbackHistory() {
+  feedbackHistoryListEl.innerHTML = "";
+  if (feedbackHistory.length === 0) {
+    const li = document.createElement("li");
+    li.className = "history-empty";
+    li.textContent = "暂无历史记录";
+    feedbackHistoryListEl.appendChild(li);
+    return;
+  }
+  feedbackHistory.forEach((entry) => {
+    const li = document.createElement("li");
+    const cardClass = entry.netDelta > 0 ? "card-positive" : entry.netDelta < 0 ? "card-negative" : "card-neutral";
+    li.className = `history-card ${cardClass}`;
+
+    const deltaClass = entry.netDelta > 0 ? "delta-up" : entry.netDelta < 0 ? "delta-down" : "delta-flat";
+    const deltaText = entry.netDelta > 0 ? `+${entry.netDelta}` : entry.netDelta < 0 ? `${entry.netDelta}` : "±0";
+
+    const causeTags = (entry.impactLabels || []).map((lbl) => {
+      const found = entry.impacts.find((im) => im.label === lbl);
+      const polarity = found ? found.polarity : "neutral";
+      const causeClass = polarity === "positive" ? "cause-positive" : polarity === "negative" ? "cause-negative" : "cause-neutral";
+      return `<span class="history-cause ${causeClass}">${lbl}</span>`;
+    }).join("");
+
+    li.innerHTML = `
+      <div class="history-head">
+        <span class="history-day">${entry.dayLabel}</span>
+        <span class="history-phase">${entry.phaseName}</span>
+      </div>
+      <div class="history-scoreline">
+        <span class="history-score">${entry.currScore}</span>
+        <span class="history-delta ${deltaClass}">${deltaText}</span>
+      </div>
+      <div class="history-causes">${causeTags || '<span class="history-cause">平稳过渡</span>'}</div>
+    `;
+    feedbackHistoryListEl.appendChild(li);
+  });
+}
+
+function updateFeedbackPanel(explainResult, dayNum, phase, levelValue) {
+  if (!explainResult) {
+    deltaIndicatorEl.classList.remove("delta-positive", "delta-negative");
+    deltaIndicatorEl.classList.add("delta-neutral");
+    deltaArrowEl.textContent = "—";
+    deltaValueEl.textContent = "0";
+    feedbackSummaryEl.classList.remove("summary-positive", "summary-negative");
+    feedbackSummaryEl.classList.add("summary-neutral");
+    feedbackSummaryEl.textContent = "等待推进观察...";
+    renderImpacts([]);
+    renderFeedbackHistory();
+    return;
+  }
+  renderDeltaIndicator(explainResult.netDelta);
+  renderFeedbackSummary(explainResult.netDelta, explainResult.summary);
+  renderImpacts(explainResult.impacts);
+
+  const historyEntry = {
+    dayNum,
+    dayLabel: `第${dayNum}天`,
+    phaseName: phase,
+    tideLevel: levelValue,
+    netDelta: explainResult.netDelta,
+    prevScore: explainResult.prevScore,
+    currScore: explainResult.currScore,
+    summary: explainResult.summary,
+    impacts: explainResult.impacts.map((i) => ({
+      id: i.id,
+      label: i.label,
+      polarity: i.polarity,
+      strength: i.strength,
+      delta: i.delta
+    })),
+    impactLabels: explainResult.impacts.map((i) => i.label)
+  };
+  feedbackHistory.unshift(historyEntry);
+  if (feedbackHistory.length > FEEDBACK_HISTORY_MAX) {
+    feedbackHistory = feedbackHistory.slice(0, FEEDBACK_HISTORY_MAX);
+  }
+  renderFeedbackHistory();
+}
+
 function logEvent(text) {
   const li = document.createElement("li");
   li.textContent = text;
@@ -286,9 +428,11 @@ function showBudgetTip(text, type = "warn") {
 
 function advance() {
   if (challengeComplete || challengeFailed) return;
+  const prevSum = totals();
   tick += 1;
   if (tick % 2 === 0) day += 1;
   const level = tideLevel();
+  const currentPhase = phaseName(level);
   let births = 0;
   let stress = 0;
 
@@ -323,15 +467,19 @@ function advance() {
     if (cell.snails > 3 && shelter && Math.random() < 0.1) cell.crabs = Math.min(3, cell.crabs + 1);
   });
 
+  const currSum = totals();
+  const explain = explainStabilityChange(prevSum, currSum, level);
+
   if (currentChallenge && stress > 0) challengeStressCount += 1;
 
-  if (phaseName(level) === "满潮") logEvent("满潮带来浮游养分，贝类扩张更快。");
+  if (currentPhase === "满潮") logEvent("满潮带来浮游养分，贝类扩张更快。");
   else if (stress > 0) logEvent(`低水位造成${stress}处生物压力。`);
   else if (births > 3) logEvent("海藻边缘出现新的螺类活动。");
-  else logEvent(`${phaseName(level)}平稳经过。`);
+  else logEvent(`${currentPhase}平稳经过。`);
 
   draw();
   updatePanel();
+  updateFeedbackPanel(explain, day, currentPhase, level);
   if (currentChallenge) checkChallengeProgress();
 }
 
@@ -540,6 +688,7 @@ function resetSimulation() {
   day = 1;
   budget = INITIAL_BUDGET;
   challengeStressCount = 0;
+  feedbackHistory = [];
   if (currentChallenge) {
     challengeComplete = false;
     challengeFailed = false;
@@ -568,6 +717,7 @@ function resetSimulation() {
   logEvent("潮汐池进入初始观察。");
   draw();
   updatePanel();
+  updateFeedbackPanel(null, day, phaseName(tideLevel()), tideLevel());
   if (currentChallenge) renderChallengeGoals();
 }
 
@@ -674,7 +824,7 @@ function serializeState() {
   items.forEach((li) => events.push(li.textContent));
 
   return {
-    version: 1,
+    version: 2,
     savedAt: Date.now(),
     grid: deepCloneGrid(grid),
     tick,
@@ -685,7 +835,8 @@ function serializeState() {
     currentChallenge: currentChallenge ? { ...currentChallenge } : null,
     challengeStressCount,
     challengeComplete,
-    challengeFailed
+    challengeFailed,
+    feedbackHistory: [...feedbackHistory]
   };
 }
 
@@ -709,6 +860,7 @@ function deserializeState(state) {
   challengeStressCount = state.challengeStressCount || 0;
   challengeComplete = state.challengeComplete || false;
   challengeFailed = state.challengeFailed || false;
+  feedbackHistory = state.feedbackHistory ? [...state.feedbackHistory] : [];
 
   if (state.currentChallenge) {
     currentChallenge = { ...state.currentChallenge };
@@ -735,6 +887,15 @@ function deserializeState(state) {
 
   draw();
   updatePanel();
+  renderFeedbackHistory();
+  if (feedbackHistory.length > 0) {
+    const latest = feedbackHistory[0];
+    renderDeltaIndicator(latest.netDelta);
+    renderFeedbackSummary(latest.netDelta, latest.summary);
+    renderImpacts(latest.impacts);
+  } else {
+    updateFeedbackPanel(null, day, phaseName(tideLevel()), tideLevel());
+  }
   if (currentChallenge) renderChallengeGoals();
   if (challengeComplete) showChallengeStatus("success", "挑战成功！生态管理出色。");
   else if (challengeFailed) showChallengeStatus("fail", "挑战失败！点击重置再试一次。");
@@ -947,3 +1108,4 @@ sandboxNameInput.addEventListener("keydown", (e) => {
 logEvent("潮汐池进入初始观察。");
 draw();
 updatePanel();
+updateFeedbackPanel(null, day, phaseName(tideLevel()), tideLevel());
