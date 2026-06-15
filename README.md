@@ -4,6 +4,55 @@
 
 玩家通过放置岩缝、海藻、贝群和遮阴来维持潮间带生态稳定。系统包含潮汐循环、物种数量变化、捕食关系、低水位压力、生态稳定度评分和生态预算机制。
 
+## 快速开始
+
+### 方式一：直接打开 HTML
+
+无需安装依赖，直接用浏览器打开 `index.html` 即可游玩：
+
+```bash
+open index.html
+```
+
+### 方式二：使用本地开发服务器
+
+首次接手项目时先安装开发依赖：
+
+```bash
+npm install
+```
+
+启动本地静态服务器：
+
+```bash
+npm run dev
+```
+
+默认访问地址为 `http://127.0.0.1:8080`。如需只启动服务但不自动打开浏览器，可使用：
+
+```bash
+npm run serve
+```
+
+## 开发与质量检查
+
+项目保持为轻量静态 Canvas 应用，开发命令只用于本地服务、静态检查、格式检查和核心逻辑测试。
+
+| 命令                 | 说明                                          |
+| -------------------- | --------------------------------------------- |
+| `npm test`           | 运行 `core.js` 的 Node.js 核心逻辑测试        |
+| `npm run lint`       | 使用 ESLint 检查 JavaScript 文件              |
+| `npm run lint:fix`   | 自动修复 ESLint 可修复问题                    |
+| `npm run format`     | 使用 Prettier 检查 JS/CSS/HTML/Markdown 格式  |
+| `npm run format:fix` | 自动格式化 JS/CSS/HTML/Markdown 文件          |
+| `npm run check`      | 串联执行 lint、test、format，建议提交前先运行 |
+
+推荐交付前执行：
+
+```bash
+npm run check
+```
+
 ## 模块架构
 
 为了便于后续扩展玩法，代码已拆分为清晰的分层模块。所有模块使用 UMD 封装，静态页面可直接打开运行，无需构建工具。
@@ -46,10 +95,10 @@ core.js → state.js → ecosystem.js → renderer.js → ui.js → app.js
 
 ## 核心测试
 
-核心计算逻辑已从浏览器交互代码中拆分，位于 `core.js`。可通过 Node.js 运行轻量测试：
+核心计算逻辑已从浏览器交互代码中拆分，位于 `core.js`。可通过 npm 脚本运行轻量测试：
 
 ```bash
-node test.js
+npm test
 ```
 
 测试覆盖以下核心模块：
