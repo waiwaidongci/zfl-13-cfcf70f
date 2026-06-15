@@ -8,6 +8,7 @@ const {
   stabilityComponents,
   clampScore,
   rawScoreFromComponents,
+  visibleImpactsForScoreDelta,
   explainStabilityChange,
   IMPACT_CATEGORIES,
   neighbors
@@ -466,6 +467,44 @@ test("摘要中的数值必须与 netDelta 一致", () => {
   });
 });
 
+test("netDelta 为 0 时不应输出非零影响标签", () => {
+  const prev = { snails: 100, crabs: 100, mussels: 0, stars: 100, kelp: 0, rock: 0, shade: 0 };
+  const curr = { snails: 100, crabs: 110, mussels: 0, stars: 100, kelp: 0, rock: 0, shade: 0 };
+  const result = explainStabilityChange(prev, curr, 20);
+
+  assert.strictEqual(result.prevScore, 0);
+  assert.strictEqual(result.currScore, 0);
+  assert.strictEqual(result.netDelta, 0);
+  assert.strictEqual(result.summary, "本轮生态状态保持平稳");
+  assert.deepStrictEqual(result.impacts, []);
+});
+
+test("影响标签贡献值不应超过主稳定度可见变化", () => {
+  const impacts = [
+    { id: "kelp_expansion", label: "海藻扩张", polarity: "positive", strength: 2, delta: 7 },
+    { id: "predation_pressure", label: "捕食压力", polarity: "negative", strength: 1, delta: -4 }
+  ];
+  const result = visibleImpactsForScoreDelta(impacts, 2);
+
+  assert.strictEqual(result.length, 1);
+  assert.strictEqual(result[0].id, "kelp_expansion");
+  assert.strictEqual(result[0].delta, 2);
+  assert.strictEqual(result[0].rawDelta, 7);
+});
+
+test("影响标签只保留与主稳定度变化语义一致的因素", () => {
+  const impacts = [
+    { id: "kelp_expansion", label: "海藻扩张", polarity: "positive", strength: 2, delta: 3 },
+    { id: "predation_pressure", label: "捕食压力", polarity: "negative", strength: 1, delta: 2 },
+    { id: "mussel_overcrowd", label: "贝类过密", polarity: "negative", strength: 1, delta: -2 }
+  ];
+  const positive = visibleImpactsForScoreDelta(impacts, 2);
+  const negative = visibleImpactsForScoreDelta(impacts, -2);
+
+  assert.deepStrictEqual(positive.map((impact) => impact.id), ["kelp_expansion"]);
+  assert.deepStrictEqual(negative.map((impact) => impact.id), ["mussel_overcrowd"]);
+});
+
 test("相同输入净变化为零且含摘要", () => {
   const sum = { snails: 5, crabs: 2, mussels: 10, stars: 1, kelp: 3, rock: 4, shade: 1 };
   const result = explainStabilityChange(sum, sum, 50);
@@ -516,18 +555,20 @@ test("海藻扩张 -> 触发 kelp_expansion 正向", () => {
 });
 
 test("海星增加 -> 触发 predation_pressure", () => {
-  const sum1 = { snails: 8, crabs: 2, mussels: 20, stars: 1, kelp: 3, rock: 3, shade: 1 };
-  const sum2 = { snails: 8, crabs: 2, mussels: 14, stars: 3, kelp: 3, rock: 3, shade: 1 };
+  const sum1 = { snails: 12, crabs: 4, mussels: 24, stars: 4, kelp: 5, rock: 8, shade: 4 };
+  const sum2 = { snails: 7, crabs: 5, mussels: 12, stars: 5, kelp: 5, rock: 8, shade: 4 };
   const result = explainStabilityChange(sum1, sum2, 55);
   const found = result.impacts.find((i) => i.id === "predation_pressure");
+  assert.ok(result.netDelta < 0, "捕食压力样本应造成主稳定度可见下降");
   assert.ok(found, "应检测到捕食压力因素");
 });
 
 test("低潮失水 -> 低水位+物种损失触发 low_tide_stress", () => {
-  const sum1 = { snails: 10, crabs: 2, mussels: 15, stars: 1, kelp: 2, rock: 1, shade: 0 };
-  const sum2 = { snails: 6, crabs: 2, mussels: 12, stars: 1, kelp: 2, rock: 1, shade: 0 };
+  const sum1 = { snails: 10, crabs: 0, mussels: 15, stars: 0, kelp: 4, rock: 8, shade: 3 };
+  const sum2 = { snails: 4, crabs: 0, mussels: 10, stars: 0, kelp: 4, rock: 8, shade: 3 };
   const result = explainStabilityChange(sum1, sum2, 18);
   const found = result.impacts.find((i) => i.id === "low_tide_stress");
+  assert.ok(result.netDelta < 0, "低潮失水样本应造成主稳定度可见下降");
   assert.ok(found, "低潮+物种损失应触发低潮失水");
   assert.ok(found.delta <= 0, "低潮失水贡献值应为负");
 });

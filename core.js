@@ -188,6 +188,23 @@
     }
   ];
 
+  function visibleImpactsForScoreDelta(impacts, netDelta) {
+    if (netDelta === 0) return [];
+    const direction = Math.sign(netDelta);
+    const maxMagnitude = Math.abs(netDelta);
+    return impacts
+      .filter((impact) => {
+        if (Math.sign(impact.delta) !== direction) return false;
+        if (direction > 0) return impact.polarity !== "negative";
+        return impact.polarity !== "positive";
+      })
+      .map((impact) => ({
+        ...impact,
+        rawDelta: impact.delta,
+        delta: direction * Math.min(Math.abs(impact.delta), maxMagnitude)
+      }));
+  }
+
   function explainStabilityChange(prevSum, currSum, tide) {
     const prevComps = stabilityComponents(prevSum);
     const currComps = stabilityComponents(currSum);
@@ -224,18 +241,19 @@
       }
     }
 
-    impacts.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+    const visibleImpacts = visibleImpactsForScoreDelta(impacts, netDelta);
+    visibleImpacts.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
 
     let summary;
     if (netDelta > 0) {
-      const positive = impacts.filter((i) => i.delta > 0);
+      const positive = visibleImpacts.filter((i) => i.delta > 0);
       if (positive.length > 0) {
         summary = `${positive[0].label}推动稳定度上升 ${netDelta} 点`;
       } else {
         summary = `生态状况改善，稳定度上升 ${netDelta} 点`;
       }
     } else if (netDelta < 0) {
-      const negative = impacts.filter((i) => i.delta < 0);
+      const negative = visibleImpacts.filter((i) => i.delta < 0);
       if (negative.length > 0) {
         summary = `${negative[0].label}导致稳定度下降 ${Math.abs(netDelta)} 点`;
       } else {
@@ -253,7 +271,7 @@
       rawCurrScore: Math.round(rawCurrScore),
       rawNetDelta: Math.round(rawNetDelta),
       summary,
-      impacts,
+      impacts: visibleImpacts,
       components: {
         prev: prevComps,
         curr: currComps
@@ -288,6 +306,7 @@
     clampScore,
     rawScoreFromComponents,
     stabilityScore,
+    visibleImpactsForScoreDelta,
     explainStabilityChange,
     IMPACT_CATEGORIES,
     neighbors
